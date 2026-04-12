@@ -334,18 +334,35 @@ function getRevenue(row) {
 // ---- FETCH ----
 async function fetchTab(name) {
   const gid = GIDS[name];
-  const url = `https://docs.google.com/spreadsheets/d/e/${PUB_ID}/gviz/tq?tqx=out:json&gid=${gid}`;
+  const url = `https://docs.google.com/spreadsheets/d/e/${PUB_ID}/pub?output=csv&gid=${gid}`;
   try {
     const r = await fetch(url);
     const t = await r.text();
-    const j = JSON.parse(t.substring(47).slice(0,-2));
-    if (!j.table || !j.table.cols) return [];
-    const cols = j.table.cols.map(c=>c.label);
-    return (j.table.rows||[])
-      .map(r=>r.c.reduce((o,cell,i)=>{ o[cols[i]]=cell?cell.v:''; return o; },{}))
-      .filter(r=>Object.values(r).some(v=>v!==''));
+    if (!t || t.includes('<!DOCTYPE')) return [];
+
+    const rows = t.split('\n').map(row => {
+      // Parse CSV properly handling quoted fields
+      const cells = [];
+      let cur = '', inQ = false;
+      for (let i = 0; i < row.length; i++) {
+        if (row[i] === '"') { inQ = !inQ; }
+        else if (row[i] === ',' && !inQ) { cells.push(cur.trim()); cur = ''; }
+        else { cur += row[i]; }
+      }
+      cells.push(cur.trim());
+      return cells;
+    });
+
+    if (rows.length < 2) return [];
+    const headers = rows[0];
+    return rows.slice(1)
+      .filter(r => r.some(v => v !== ''))
+      .map(r => headers.reduce((o, h, i) => {
+        o[h] = r[i] || '';
+        return o;
+      }, {}));
   } catch(e) {
-    console.error('Error fetching '+name, e);
+    console.error('Error fetching ' + name, e);
     return [];
   }
 }
