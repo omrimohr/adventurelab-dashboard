@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adventure Lab — Operaciones</title>
+<link href="https://fonts.googleapis.com/css2?family=Asap:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --teal:     #5AC0C8;
+  --teal-dim: #3a8a90;
+  --teal-bg:  rgba(90,192,200,0.08);
+  --teal-bg2: rgba(90,192,200,0.15);
+  --dark:     #2E282A;
+  --dark2:    #3d3438;
+  --dark3:    #4a3e43;
+  --white:    #FFFFFF;
+  --off-white:#F4F8F8;
+  --border:   rgba(90,192,200,0.15);
+  --border2:  rgba(90,192,200,0.28);
+  --text:     #FFFFFF;
+  --text2:    #9ecfd3;
+  --text3:    #5a8a8e;
+  --green:    #4caf7d;
+  --green-bg: rgba(76,175,125,0.12);
+  --amber:    #f0b429;
+  --amber-bg: rgba(240,180,41,0.12);
+  --red:      #e05252;
+  --red-bg:   rgba(224,82,82,0.12);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: 'Asap', sans-serif; background: var(--dark); color: var(--text); min-height: 100vh; }
+
+/* ---- LAYOUT ---- */
+.shell { display: grid; grid-template-columns: 200px 1fr; grid-template-rows: 58px 1fr; min-height: 100vh; }
+
+/* ---- TOPBAR ---- */
+.topbar {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px;
+  background: var(--dark);
+  border-bottom: 1px solid var(--border2);
+}
+.logo-area { display: flex; align-items: center; gap: 12px; }
+.logo-svg { width: 34px; height: 34px; flex-shrink: 0; }
+.logo-name { font-size: 15px; font-weight: 700; color: var(--white); letter-spacing: 0.04em; }
+.logo-name span { color: var(--teal); }
+.logo-tag { font-size: 9px; color: var(--teal); font-style: italic; letter-spacing: 0.1em; margin-top: 1px; }
+.topbar-center { font-size: 10px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text3); }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.pending-badge {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 12px; border-radius: 3px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  border: 1px solid rgba(224,82,82,0.4);
+  background: var(--red-bg); color: var(--red);
+  transition: all 0.15s;
+}
+.pending-badge.ok { border-color: rgba(90,192,200,0.3); background: var(--teal-bg); color: var(--teal); }
+.pending-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); animation: pulse 1.5s infinite; }
+.pending-badge.ok .pending-dot { background: var(--teal); animation: none; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+.last-upd { font-size: 10px; color: var(--text3); }
+.refresh-btn { font-size: 11px; font-weight: 600; padding: 5px 14px; border: 1px solid var(--teal-dim); border-radius: 3px; background: transparent; color: var(--teal); cursor: pointer; transition: all 0.15s; }
+.refresh-btn:hover { background: var(--teal-bg); }
+
+/* ---- SIDEBAR ---- */
+.sidebar { background: var(--dark2); border-right: 1px solid var(--border); padding: 12px 0; overflow-y: auto; }
+.nav-label { font-size: 9px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text3); padding: 0 14px; margin: 14px 0 5px; }
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 14px; font-size: 12px; font-weight: 500; color: var(--text2); cursor: pointer; border-left: 2px solid transparent; transition: all 0.15s; }
+.nav-item:hover { color: var(--white); background: var(--dark3); }
+.nav-item.active { color: var(--teal); border-left-color: var(--teal); background: var(--teal-bg); }
+.nav-icon { font-size: 12px; width: 14px; text-align: center; }
+.nav-divider { height: 1px; background: var(--border); margin: 8px 14px; }
+.nav-chip { font-size: 10px; background: var(--teal-bg); color: var(--teal); padding: 1px 6px; border-radius: 2px; margin-left: auto; }
+
+/* ---- MAIN ---- */
+.main { padding: 20px 22px; overflow-y: auto; background: var(--dark); }
+
+/* ---- SECTION HEADER ---- */
+.s-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.s-title { font-size: 9px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text3); }
+.s-sub { font-size: 11px; color: var(--text3); }
+
+/* ---- METRIC CARDS ---- */
+.metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 16px; }
+.m-card { background: var(--dark2); border: 1px solid var(--border); border-top: 2px solid var(--teal); border-radius: 5px; padding: 14px 16px; animation: up 0.3s ease both; }
+.m-card:nth-child(2){animation-delay:.05s}.m-card:nth-child(3){animation-delay:.1s}.m-card:nth-child(4){animation-delay:.15s}
+@keyframes up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.m-lbl { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); margin-bottom: 6px; }
+.m-val { font-size: 26px; font-weight: 700; color: var(--white); }
+.m-sub { font-size: 11px; color: var(--text2); margin-top: 3px; }
+
+/* ---- KPI CARDS ---- */
+.kpis { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; margin-bottom: 16px; }
+.k-card { background: var(--dark2); border: 1px solid var(--border); border-radius: 5px; padding: 12px 13px; cursor: pointer; transition: all 0.2s; }
+.k-card:hover { border-color: var(--border2); transform: translateY(-1px); }
+.k-card.active { border-color: var(--teal); }
+.k-card.c-g { border-left: 3px solid var(--teal); }
+.k-card.c-a { border-left: 3px solid var(--amber); }
+.k-card.c-r { border-left: 3px solid var(--red); }
+.k-card.c-n { border-left: 3px solid var(--text3); }
+.k-top { display: flex; justify-content: space-between; margin-bottom: 7px; }
+.k-name { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text2); }
+.k-wt { font-size: 9px; color: var(--text3); }
+.k-val { font-size: 22px; font-weight: 700; margin-bottom: 5px; }
+.k-val.g{color:var(--teal)}.k-val.a{color:var(--amber)}.k-val.r{color:var(--red)}.k-val.n{color:var(--text3)}
+.k-bar { height: 2px; background: var(--border); border-radius: 1px; margin-bottom: 5px; overflow: hidden; }
+.k-fill { height: 100%; border-radius: 1px; transition: width 1s ease; }
+.f-g{background:var(--teal)}.f-a{background:var(--amber)}.f-r{background:var(--red)}.f-n{background:var(--text3)}
+.k-meta { font-size: 9px; color: var(--text3); }
+.badge { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 1px 6px; border-radius: 2px; margin-bottom: 5px; }
+.b-g{background:var(--teal-bg);color:var(--teal)}.b-a{background:var(--amber-bg);color:var(--amber)}.b-r{background:var(--red-bg);color:var(--red)}.b-n{background:rgba(255,255,255,0.05);color:var(--text3)}
+
+/* ---- DETAIL PANEL ---- */
+.detail { background: var(--dark2); border: 1px solid var(--border2); border-radius: 5px; padding: 16px 18px; margin-bottom: 16px; display: none; }
+.detail.vis { display: block; animation: up 0.2s ease; }
+.d-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.d-title { font-size: 13px; font-weight: 700; color: var(--white); }
+.close-btn { font-size: 10px; padding: 3px 8px; border: 1px solid var(--border2); border-radius: 3px; background: transparent; color: var(--text3); cursor: pointer; }
+.d-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.d-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.d-row:last-child { border-bottom: none; }
+.d-k { color: var(--text2); }
+.d-v { font-size: 11px; color: var(--white); }
+.d-v.g{color:var(--teal)}.d-v.a{color:var(--amber)}.d-v.r{color:var(--red)}
+.sub-t { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+
+/* ---- BOTTOM GRID ---- */
+.bot-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.panel { background: var(--dark2); border: 1px solid var(--border); border-radius: 5px; padding: 13px 15px; }
+.p-title { font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text3); margin-bottom: 10px; }
+.bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.b-lbl { font-size: 11px; color: var(--text2); width: 95px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-track { flex: 1; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.b-fill { height: 100%; background: var(--teal); border-radius: 2px; transition: width 0.8s ease; }
+.b-val { font-size: 11px; color: var(--white); font-weight: 600; width: 60px; text-align: right; }
+
+/* ---- TABLE ---- */
+.tbl-wrap { background: var(--dark2); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; margin-bottom: 16px; }
+.tbl-hdr { display: flex; justify-content: space-between; align-items: center; padding: 11px 14px; border-bottom: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: 11px; }
+th { text-align: left; padding: 8px 12px; font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); border-bottom: 1px solid var(--border); background: var(--dark3); }
+td { padding: 8px 12px; color: var(--text2); border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--dark3); }
+.pill { display: inline-block; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 2px; letter-spacing: 0.04em; }
+.p-ok  { background: var(--teal-bg);  color: var(--teal); }
+.p-pend{ background: var(--amber-bg); color: var(--amber); }
+.p-bad { background: var(--red-bg);   color: var(--red); }
+.p-off { background: rgba(255,255,255,0.05); color: var(--text3); }
+.cat-tag { display: inline-block; font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 2px; background: var(--teal-bg); color: var(--teal); }
+
+/* ---- RESOURCE GRID ---- */
+.res-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+.res-card { background: var(--dark3); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; }
+.res-name { font-size: 12px; font-weight: 600; color: var(--white); margin-bottom: 3px; }
+.res-meta { font-size: 10px; color: var(--text3); }
+.res-status { font-size: 9px; font-weight: 700; margin-top: 5px; }
+.rs-op  { color: var(--teal); }
+.rs-off { color: var(--red); }
+
+/* ---- LOADING ---- */
+.loading { display: flex; align-items: center; justify-content: center; height: 200px; flex-direction: column; gap: 10px; color: var(--text3); font-size: 12px; }
+.spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--teal); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty { color: var(--text3); font-size: 11px; text-align: center; padding: 14px 0; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo-area">
+    <svg class="logo-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M50 8 L88 82 H66 L50 46 L34 82 H12 Z" fill="#5AC0C8"/>
+      <path d="M37 64 H63 L58 76 H42 Z" fill="#2E282A"/>
+    </svg>
+    <div>
+      <div class="logo-name"><span>ADVENTURE</span>LAB®</div>
+      <div class="logo-tag">Discover pure nature</div>
+    </div>
+  </div>
+  <div class="topbar-center">Panel de Operaciones</div>
+  <div class="topbar-right">
+    <div class="pending-badge" id="pendingBadge" onclick="scrollToValidation()">
+      <div class="pending-dot"></div>
+      <span id="pendingText">Cargando...</span>
+    </div>
+    <div class="last-upd" id="lastUpd">—</div>
+    <button class="refresh-btn" onclick="loadAll()">↺ Actualizar</button>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="nav-label">Vistas</div>
+  <div class="nav-item active" onclick="setView('ops',this)"><span class="nav-icon">◉</span> Operaciones</div>
+  <div class="nav-item" onclick="setView('kpi',this)"><span class="nav-icon">◈</span> KPIs</div>
+  <div class="nav-item" onclick="setView('bookings',this)"><span class="nav-icon">◇</span> Bookings</div>
+  <div class="nav-item" onclick="setView('resources',this)"><span class="nav-icon">◁</span> Resources</div>
+  <div class="nav-item" onclick="setView('crew',this)"><span class="nav-icon">◎</span> Crew</div>
+  <div class="nav-item" onclick="setView('items',this)"><span class="nav-icon">◆</span> Items</div>
+
+  <div class="nav-divider"></div>
+  <div class="nav-label">Marinas</div>
+  <div class="nav-item" onclick="setMarina('all',this)"><span class="nav-icon">▸</span> Todas</div>
+  <div class="nav-item" id="mn-yak" onclick="setMarina('The Yak',this)"><span class="nav-icon">▸</span> The Yak <span class="nav-chip" id="chip-yak">—</span></div>
+  <div class="nav-item" id="mn-car" onclick="setMarina('Carmelita',this)"><span class="nav-icon">▸</span> Carmelita <span class="nav-chip" id="chip-car">—</span></div>
+  <div class="nav-item" id="mn-hab" onclick="setMarina('Habitas',this)"><span class="nav-icon">▸</span> Habitas <span class="nav-chip" id="chip-hab">—</span></div>
+
+  <div class="nav-divider"></div>
+  <div class="nav-label">Coordinadores</div>
+  <div class="nav-item" style="cursor:default" id="coord1"><span class="nav-icon" style="color:var(--teal)">●</span> Cargando...</div>
+  <div class="nav-item" style="cursor:default" id="coord2"><span class="nav-icon" style="color:var(--teal)">●</span> —</div>
+
+  <div class="nav-divider"></div>
+  <div class="nav-item" id="connStatus"><span class="nav-icon" style="color:var(--text3)">●</span> Conectando...</div>
+</div>
+
+<!-- MAIN -->
+<div class="main" id="main">
+  <div class="loading"><div class="spinner"></div>Cargando datos de Adventure Lab...</div>
+</div>
+
+</div>
+<script>
+const SHEET_ID = '1YzTUE1EEDUdxnZRCOdfxqPA3pj2nDdEN534XkjOcn6c';
+const PUB_ID   = '2PACX-1vTvE0XPLrdmmapuFvftdpfu3i2nToHOc-kaCP2ZzUt39QSReR5IezPCM4UJ_h79QjtQ4EFat2F6KxN8';
+
+// State
+let daily=[], kpi=[], bookings=[], resources=[], items=[], crew=[];
+let view='ops', marina='all';
+
+// ---- FETCH ----
+async function fetchTab(name) {
+  const urls = [
+    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(name)}`,
+    `https://docs.google.com/spreadsheets/d/e/${PUB_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(name)}`,
+  ];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url);
+      const t = await r.text();
+      if (!t.includes('google.visualization')) continue;
+      const j = JSON.parse(t.substring(47).slice(0,-2));
+      if (!j.table || !j.table.cols) continue;
+      const cols = j.table.cols.map(c=>c.label);
+      return (j.table.rows||[])
+        .map(r=>r.c.reduce((o,cell,i)=>{ o[cols[i]]=cell?cell.v:''; return o; },{}))
+        .filter(r=>Object.values(r).some(v=>v!==''));
+    } catch(e) { continue; }
+  }
+  return [];
+}
+
+async function loadAll() {
+  document.getElementById('main').innerHTML = '<div class="loading"><div class="spinner"></div>Actualizando...</div>';
+  try {
+    [daily, kpi, bookings, resources, items, crew] = await Promise.all([
+      fetchTab('Daily Summary').catch(()=>[]),
+      fetchTab('KPI Summary').catch(()=>[]),
+      fetchTab('Bookings').catch(()=>[]),
+      fetchTab('Resources').catch(()=>[]),
+      fetchTab('Items').catch(()=>[]),
+      fetchTab('Crew').catch(()=>[]),
+    ]);
+    document.getElementById('lastUpd').textContent = 'Actualizado: '+new Date().toLocaleTimeString('es-MX');
+    document.getElementById('connStatus').innerHTML = '<span class="nav-icon" style="color:var(--teal)">●</span> Conectado';
+    updateSidebar();
+    updatePending();
+    render();
+  } catch(e) {
+    document.getElementById('main').innerHTML = '<div class="loading">Error cargando datos.<br>Verifica que el sheet es público.</div>';
+    document.getElementById('connStatus').innerHTML = '<span class="nav-icon" style="color:var(--red)">●</span> Error';
+  }
+}
+
+// ---- SIDEBAR DYNAMIC DATA ----
+function updateSidebar() {
+  // Marina chips from today's bookings
+  const booked = bookings.filter(b=>b['Status']==='booked');
+  const yakN  = booked.filter(b=>b['Marina']==='The Yak').length;
+  const carN  = booked.filter(b=>b['Marina']==='Carmelita').length;
+  const habN  = booked.filter(b=>b['Marina']==='Habitas').length;
+  document.getElementById('chip-yak').textContent = yakN;
+  document.getElementById('chip-car').textContent = carN;
+  document.getElementById('chip-hab').textContent = habN;
+
+  // Coordinators from Crew tab
+  const coords = crew.filter(c=>
+    c['role — crew role in FareHarbor'] &&
+    c['role — crew role in FareHarbor'].toLowerCase().includes('coordinador') &&
+    c['status — active, leaving, or inactive'] === 'active'
+  );
+  if (coords[0]) document.getElementById('coord1').innerHTML = `<span class="nav-icon" style="color:var(--teal)">●</span> ${coords[0]['name — full name']}`;
+  if (coords[1]) document.getElementById('coord2').innerHTML = `<span class="nav-icon" style="color:var(--teal)">●</span> ${coords[1]['name — full name']}`;
+}
+
+function updatePending() {
+  const n = daily.filter(r=>r['Validation Status']==='Pending').length;
+  const b = document.getElementById('pendingBadge');
+  document.getElementById('pendingText').textContent = n>0 ? n+(n===1?' día pendiente':' días pendientes') : 'Todo aprobado';
+  b.className = n>0 ? 'pending-badge' : 'pending-badge ok';
+  b.querySelector('.pending-dot').style.background = n>0 ? 'var(--red)' : 'var(--teal)';
+}
+
+// ---- VIEW CONTROL ----
+function setView(v,el) {
+  view=v;
+  document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
+  if(el) el.classList.add('active');
+  render();
+}
+function setMarina(m,el) {
+  marina=m;
+  document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
+  if(el) el.classList.add('active');
+  render();
+}
+function render() {
+  if(view==='ops')       renderOps();
+  else if(view==='kpi')  renderKPI();
+  else if(view==='bookings') renderBookings();
+  else if(view==='resources') renderResources();
+  else if(view==='crew') renderCrew();
+  else if(view==='items') renderItems();
+}
+
+// ---- HELPERS ----
+function n(v){ return parseFloat(v)||0; }
+function sumF(arr,k){ return arr.reduce((s,r)=>s+n(r[k]),0); }
+function byMarina(arr,m,k){ return arr.filter(r=>r['marina — operating location']===m||r['Marina']===m); }
+function fmt(v){ return Math.round(v).toLocaleString('es-MX'); }
+function kpiColor(val,target,inv){
+  if(val===''||val===null||val===undefined) return 'n';
+  val=parseFloat(val);
+  if(isNaN(val)) return 'n';
+  if(inv) return val<=target?'g':val<=target*1.5?'a':'r';
+  return val>=target?'g':val>=target*0.85?'a':'r';
+}
+function badgeLbl(c){ return {g:'En meta',a:'Atención',r:'Bajo meta',n:'Sin datos'}[c]; }
+function kpiBadge(c){ return `<span class="badge b-${c}">${badgeLbl(c)}</span>`; }
+function pill(st){
+  if(st==='booked'||st==='on'||st==='active') return `<span class="pill p-ok">${st}</span>`;
+  if(st==='cancelled'||st==='out_of_service'||st==='leaving') return `<span class="pill p-bad">${st}</span>`;
+  if(st==='Pending') return `<span class="pill p-pend">${st}</span>`;
+  if(st==='Approved') return `<span class="pill p-ok">${st}</span>`;
+  if(st==='Issue') return `<span class="pill p-bad">${st}</span>`;
+  return `<span class="pill p-off">${st}</span>`;
+}
+
+// Get category for a booking by matching item pk or name to Items tab
+function getCategory(tourName, tourPk) {
+  if(!tourName && !tourPk) return 'Otro';
+  // Try pk match first
+  const byPk = items.find(i=>String(i['pk — FareHarbor item ID'])===String(tourPk));
+  if(byPk) return byPk['category — dashboard category'] || 'Otro';
+  // Try name match
+  const byName = items.find(i=>{
+    const iName = (i['name — item name (exact FareHarbor name)']||'').toLowerCase();
+    const tName = (tourName||'').toLowerCase();
+    return iName && tName && (iName===tName || tName.includes(iName.substring(0,15)));
+  });
+  if(byName) return byName['category — dashboard category'] || 'Otro';
+  // Fallback
+  const t=(tourName||'').toLowerCase();
+  if(t.includes('sup')||t.includes('paddleboard')) return 'SUP';
+  if(t.includes('kayak')) return 'Kayak';
+  if(t.includes('sail')||t.includes('vela')||t.includes('catam')||t.includes('mono')) return 'Vela';
+  if(t.includes('boat')||t.includes('ponton')||t.includes('lancha')) return 'Lancha';
+  if(t.includes('yoga')) return 'Yoga';
+  if(t.includes('rental')||t.includes('renta')) return 'Renta';
+  return 'Otro';
+}
+
+function barRow(lbl,val,max,display){
+  const pct=max>0?Math.min(100,(val/max)*100):0;
+  return `<div class="bar-row"><div class="b-lbl">${lbl}</div><div class="b-track"><div class="b-fill" style="width:${pct}%"></div></div><div class="b-val">${display}</div></div>`;
+}
+
+// ---- OPS VIEW ----
+function renderOps() {
+  const approved = daily.filter(r=>r['Validation Status']==='Approved');
+  const last7 = approved.slice(-7);
+  const booked = bookings.filter(b=>b['Status']==='booked');
+
+  const totalTours   = sumF(last7,'Total Tours');
+  const totalPeople  = sumF(last7,'Total People');
+  const totalRevenue = sumF(last7,'Revenue (MXN net)');
+
+  // Marina breakdown from resources tab — dynamic
+  const marinaList = [...new Set(resources.map(r=>r['marina — operating location']).filter(Boolean))];
+  const marinaTours = {};
+  const marinaRevs  = {};
+  marinaList.forEach(m=>{
+    marinaTours[m] = sumF(last7, m+' Tours') || booked.filter(b=>b['Marina']===m).length;
+    marinaRevs[m]  = sumF(last7, m+' Revenue') || sumF(booked.filter(b=>b['Marina']===m),'Invoice Price (MXN)');
+  });
+  const maxT = Math.max(...Object.values(marinaTours),1);
+  const maxR = Math.max(...Object.values(marinaRevs),1);
+
+  // KPI
+  const latestKPI = kpi.length>0 ? kpi[kpi.length-1] : {};
+  const kpiScore  = latestKPI['Total KPI Score'];
+  const pendingD  = n(latestKPI['Days Pending']);
+  const costR     = latestKPI['Cost Ratio %'];
+  const denyP     = latestKPI['Deny Service %'];
+  const uptime    = latestKPI['Uptime %'];
+  const checkL    = latestKPI['Checklist %'];
+  const revCov    = latestKPI['Reviews Coverage %'];
+  const fiveStar  = latestKPI['5-Star %'];
+
+  const cc = kpiColor, cb = kpiBadge;
+  const costC  = cc(costR,33,true);
+  const denyC  = cc(denyP,2,true);
+  const upC    = cc(uptime,95,false);
+  const checkC = cc(checkL,90,false);
+  const revC   = cc(revCov,100,false);
+
+  // Category breakdown — dynamic from Items tab
+  const catCounts = {};
+  booked.slice(-80).forEach(b=>{
+    const cat = getCategory(b['Tour Name'], b['Tour ID (PK)']);
+    catCounts[cat] = (catCounts[cat]||0)+1;
+  });
+  const maxCat = Math.max(...Object.values(catCounts),1);
+
+  // Recent bookings
+  const recent = [...booked].reverse().slice(0,5);
+
+  // Active resources count — dynamic
+  const activeRes = resources.filter(r=>r['status — active or out_of_service']==='active').length;
+  const totalRes  = resources.filter(r=>r['name — resource name']).length;
+
+  document.getElementById('main').innerHTML = `
+    <div class="s-hdr">
+      <div class="s-title">Resumen Operacional</div>
+      <div class="s-sub">Últimos 7 días aprobados · ${marina==='all'?'Todas las marinas':marina}</div>
+    </div>
+
+    <div class="metrics">
+      <div class="m-card">
+        <div class="m-lbl">Tours</div>
+        <div class="m-val">${totalTours}</div>
+        <div class="m-sub">avg ${totalTours>0?Math.round(totalPeople/totalTours*10)/10:0} personas</div>
+      </div>
+      <div class="m-card">
+        <div class="m-lbl">Personas</div>
+        <div class="m-val">${totalPeople}</div>
+        <div class="m-sub">días aprobados</div>
+      </div>
+      <div class="m-card">
+        <div class="m-lbl">Ingresos netos</div>
+        <div class="m-val">$${fmt(totalRevenue)}</div>
+        <div class="m-sub">MXN aprobados</div>
+      </div>
+      <div class="m-card">
+        <div class="m-lbl">KPI semanal</div>
+        <div class="m-val" style="color:${typeof kpiScore==='number'?(kpiScore>=85?'var(--teal)':kpiScore>=70?'var(--amber)':'var(--red)'):'var(--text3)'}">${typeof kpiScore==='number'?kpiScore+'%':kpiScore||'—'}</div>
+        <div class="m-sub">${pendingD>0?pendingD+' días pendientes':'al día'}</div>
+      </div>
+    </div>
+
+    <div class="s-hdr">
+      <div class="s-title">KPIs Coordinadores · Bono 2% venta neta</div>
+      <div class="s-sub" id="coordNames">Cargando...</div>
+    </div>
+
+    <div class="kpis">
+      <div class="k-card c-${costC}" onclick="toggleDetail('cost')">
+        <div class="k-top"><div class="k-name">Costos</div><div class="k-wt">40%</div></div>
+        ${cb(costC)}<div class="k-val ${costC}">${costR!==''&&costR!==null?costR+'%':'—'}</div>
+        <div class="k-bar"><div class="k-fill f-${costC}" style="width:${costR!==''?Math.min(100,(33/Math.max(parseFloat(costR)||0.1,0.1))*100):0}%"></div></div>
+        <div class="k-meta">costo/ingreso · meta ≤33%</div>
+      </div>
+      <div class="k-card c-${denyC}" onclick="toggleDetail('deny')">
+        <div class="k-top"><div class="k-name">Negaciones</div><div class="k-wt">10%</div></div>
+        ${cb(denyC)}<div class="k-val ${denyC}">${denyP!==''&&denyP!==null?denyP+'%':'—'}</div>
+        <div class="k-bar"><div class="k-fill f-${denyC}" style="width:${denyP!==''?Math.min(100,(2/Math.max(parseFloat(denyP)||0.1,0.1))*100):0}%"></div></div>
+        <div class="k-meta">oportunidad perdida · ≤2%</div>
+      </div>
+      <div class="k-card c-${upC}" onclick="toggleDetail('uptime')">
+        <div class="k-top"><div class="k-name">Disponibilidad</div><div class="k-wt">10%</div></div>
+        ${cb(upC)}<div class="k-val ${upC}">${uptime!==''&&uptime!==null?uptime+'%':'—'}</div>
+        <div class="k-bar"><div class="k-fill f-${upC}" style="width:${uptime||0}%"></div></div>
+        <div class="k-meta">resources · ≥95%</div>
+      </div>
+      <div class="k-card c-${checkC}" onclick="toggleDetail('audit')">
+        <div class="k-top"><div class="k-name">Auditoría</div><div class="k-wt">20%</div></div>
+        ${cb(checkC)}<div class="k-val ${checkC}">${checkL!==''&&checkL!==null?checkL+'%':'—'}</div>
+        <div class="k-bar"><div class="k-fill f-${checkC}" style="width:${checkL||0}%"></div></div>
+        <div class="k-meta">checklists · ≥90%</div>
+      </div>
+      <div class="k-card c-${revC}" onclick="toggleDetail('reviews')">
+        <div class="k-top"><div class="k-name">Reviews</div><div class="k-wt">20%</div></div>
+        ${cb(revC)}<div class="k-val ${revC}">${revCov!==''&&revCov!==null?revCov+'%':'—'}</div>
+        <div class="k-bar"><div class="k-fill f-${revC}" style="width:${revCov||0}%"></div></div>
+        <div class="k-meta">cobertura · 5★ ${fiveStar!==''&&fiveStar!==null?fiveStar+'%':'—'}</div>
+      </div>
+    </div>
+
+    <!-- DETAIL PANELS -->
+    <div class="detail" id="detail-cost">
+      <div class="d-hdr"><div class="d-title">Control de costos</div><button class="close-btn" onclick="closeDetail()">cerrar ✕</button></div>
+      <div class="d-cols">
+        <div>
+          <div class="sub-t">Esta semana</div>
+          <div class="d-row"><span class="d-k">Ratio costo/ingreso</span><span class="d-v ${costC}">${costR!==''?costR+'%':'Sin datos'}</span></div>
+          <div class="d-row"><span class="d-k">Meta</span><span class="d-v">≤33%</span></div>
+          <div class="d-row"><span class="d-k">Tours aprobados</span><span class="d-v">${latestKPI['Tours (approved)']||'—'}</span></div>
+          <div class="d-row"><span class="d-k">Ingresos semana</span><span class="d-v">$${fmt(n(latestKPI['Revenue (MXN)']))}</span></div>
+        </div>
+        <div>
+          <div class="sub-t">Componentes de costo</div>
+          <div class="d-row"><span class="d-k">Crew (capitanes/guías)</span><span class="d-v">Por salida</span></div>
+          <div class="d-row"><span class="d-k">Combustible por resource</span><span class="d-v">Notion gas log</span></div>
+          <div class="d-row"><span class="d-k">Consumibles</span><span class="d-v">Inventario semanal</span></div>
+          <div class="d-row"><span class="d-k">Resources de terceros</span><span class="d-v a">Evitar — alto costo</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail" id="detail-deny">
+      <div class="d-hdr"><div class="d-title">Servicio negado</div><button class="close-btn" onclick="closeDetail()">cerrar ✕</button></div>
+      <div class="d-cols">
+        <div>
+          <div class="sub-t">Esta semana</div>
+          <div class="d-row"><span class="d-k">% ingresos perdidos</span><span class="d-v ${denyC}">${denyP!==''?denyP+'%':'Sin datos'}</span></div>
+          <div class="d-row"><span class="d-k">Meta</span><span class="d-v">≤2%</span></div>
+          <div class="d-row"><span class="d-k">Baseline histórico</span><span class="d-v">2.7%</span></div>
+        </div>
+        <div>
+          <div class="sub-t">Causas comunes</div>
+          <div class="d-row"><span class="d-k">Sin crew disponible</span><span class="d-v r">Más frecuente</span></div>
+          <div class="d-row"><span class="d-k">Resource en mantenimiento</span><span class="d-v">—</span></div>
+          <div class="d-row"><span class="d-k">Distancia Habitas</span><span class="d-v a">2 slots perdidos/tour</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail" id="detail-uptime">
+      <div class="d-hdr"><div class="d-title">Disponibilidad de resources</div><button class="close-btn" onclick="closeDetail()">cerrar ✕</button></div>
+      <div class="d-cols">
+        <div>
+          <div class="sub-t">Estado general</div>
+          <div class="d-row"><span class="d-k">Resources activos</span><span class="d-v g">${activeRes} de ${totalRes}</span></div>
+          <div class="d-row"><span class="d-k">Uptime esta semana</span><span class="d-v ${upC}">${uptime!==''?uptime+'%':'Sin datos'}</span></div>
+          <div class="d-row"><span class="d-k">Meta</span><span class="d-v">≥95%</span></div>
+        </div>
+        <div>
+          <div class="sub-t">Out of service</div>
+          ${resources.filter(r=>r['status — active or out_of_service']==='out_of_service').map(r=>`
+            <div class="d-row"><span class="d-k">${r['name — resource name']}</span><span class="d-v r">● Fuera servicio</span></div>
+          `).join('')||'<div class="d-row"><span class="d-k">—</span><span class="d-v g">Todo operativo</span></div>'}
+        </div>
+      </div>
+    </div>
+
+    <div class="detail" id="detail-audit">
+      <div class="d-hdr"><div class="d-title">Auditoría y orden</div><button class="close-btn" onclick="closeDetail()">cerrar ✕</button></div>
+      <div class="d-cols">
+        <div>
+          <div class="sub-t">Checklists</div>
+          <div class="d-row"><span class="d-k">Completados</span><span class="d-v ${checkC}">${checkL!==''?checkL+'%':'Sin datos'}</span></div>
+          <div class="d-row"><span class="d-k">Meta</span><span class="d-v">≥90%</span></div>
+        </div>
+        <div>
+          <div class="sub-t">Crew activo</div>
+          <div class="d-row"><span class="d-k">Crew members activos</span><span class="d-v g">${crew.filter(c=>c['status — active, leaving, or inactive']==='active').length}</span></div>
+          <div class="d-row"><span class="d-k">Capitanes</span><span class="d-v">${crew.filter(c=>c['role — crew role in FareHarbor']==='Capitan'&&c['status — active, leaving, or inactive']==='active').length}</span></div>
+          <div class="d-row"><span class="d-k">Guías</span><span class="d-v">${crew.filter(c=>c['role — crew role in FareHarbor']==='Guia'&&c['status — active, leaving, or inactive']==='active').length}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail" id="detail-reviews">
+      <div class="d-hdr"><div class="d-title">Satisfacción del cliente</div><button class="close-btn" onclick="closeDetail()">cerrar ✕</button></div>
+      <div class="d-cols">
+        <div>
+          <div class="sub-t">Reviews (bookings directos)</div>
+          <div class="d-row"><span class="d-k">Cobertura (1 review/booking)</span><span class="d-v ${revC}">${revCov!==''?revCov+'%':'Sin datos'}</span></div>
+          <div class="d-row"><span class="d-k">Meta</span><span class="d-v">100% bookings</span></div>
+          <div class="d-row"><span class="d-k">Reviews 5 estrellas</span><span class="d-v">${fiveStar!==''?fiveStar+'%':'—'}</span></div>
+          <div class="d-row"><span class="d-k">Meta 5★</span><span class="d-v">≥90%</span></div>
+        </div>
+        <div>
+          <div class="sub-t">Incentivos</div>
+          <div class="d-row"><span class="d-k">Bono crew con nombre</span><span class="d-v g">$50 MXN</span></div>
+          <div class="d-row"><span class="d-k">QR en cada booking</span><span class="d-v g">Activo</span></div>
+          <div class="d-row"><span class="d-k">Bookings hotel (sin KPI)</span><span class="d-v">Seguimiento separado</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM PANELS -->
+    <div class="bot-grid">
+      <div class="panel">
+        <div class="p-title">Tours por marina — 7 días</div>
+        ${marinaList.map(m=>barRow(m,marinaTours[m]||0,maxT,(marinaTours[m]||0)+' tours')).join('')}
+      </div>
+      <div class="panel">
+        <div class="p-title">Ingresos por marina (MXN)</div>
+        ${marinaList.map(m=>barRow(m,marinaRevs[m]||0,maxR,'$'+fmt(marinaRevs[m]||0))).join('')}
+      </div>
+      <div class="panel">
+        <div class="p-title">Items por categoría — últimos 80</div>
+        ${Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>barRow(k,v,maxCat,v+' bookings')).join('')||'<div class="empty">Sin datos</div>'}
+      </div>
+    </div>
+
+    <!-- RECENT BOOKINGS -->
+    <div class="tbl-wrap">
+      <div class="tbl-hdr">
+        <div class="s-title">Bookings recientes</div>
+        <div class="s-sub">${bookings.length} bookings totales</div>
+      </div>
+      <table>
+        <thead><tr><th>Fecha</th><th>Item</th><th>Categoría</th><th>Cliente</th><th>País</th><th>Personas</th><th>Marina</th><th>Ingreso</th><th>Status</th></tr></thead>
+        <tbody>
+          ${[...bookings].reverse().slice(0,7).map(b=>`<tr>
+            <td style="color:var(--white)">${b['Tour Date']||'—'}</td>
+            <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b['Tour Name']||'—'}</td>
+            <td><span class="cat-tag">${getCategory(b['Tour Name'],b['Tour ID (PK)'])}</span></td>
+            <td>${b['Contact Name']||'—'}</td>
+            <td>${b['Country']||'—'}</td>
+            <td>${b['# People']||0}</td>
+            <td>${b['Marina']||'—'}</td>
+            <td style="color:var(--teal);font-weight:600">$${fmt(n(b['Invoice Price (MXN)']))}</td>
+            <td>${pill(b['Status']||'')}</td>
+          </tr>`).join('')||'<tr><td colspan="9" class="empty">Sin bookings</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- VALIDATION TABLE -->
+    <div class="tbl-wrap" id="validationTable">
+      <div class="tbl-hdr">
+        <div class="s-title">Validación diaria — coordinadores</div>
+        <div class="s-sub">Cambia "Validation Status" a "Approved" en el sheet</div>
+      </div>
+      <table>
+        <thead><tr><th>Fecha</th><th>Status</th><th>Tours</th><th>Personas</th><th>Ingresos</th><th>The Yak</th><th>Carmelita</th><th>Habitas</th><th>Notas</th></tr></thead>
+        <tbody>
+          ${[...daily].reverse().slice(0,10).map(r=>`<tr>
+            <td style="color:var(--white)">${r['Date']||'—'}</td>
+            <td>${pill(r['Validation Status']||'Pending')}</td>
+            <td>${r['Total Tours']||0}</td>
+            <td>${r['Total People']||0}</td>
+            <td style="color:var(--teal);font-weight:600">$${fmt(n(r['Revenue (MXN net)']))}</td>
+            <td>${r['Yak Tours']||0}</td>
+            <td>${r['Carmelita Tours']||0}</td>
+            <td>${r['Habitas Tours']||0}</td>
+            <td style="color:var(--text3)">${r['Coordinator Notes']||'—'}</td>
+          </tr>`).join('')||'<tr><td colspan="9" class="empty">Sin datos — el resumen se genera a las 6am</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  // Update coordinator names dynamically
+  const coords = crew.filter(c=>
+    (c['role — crew role in FareHarbor']||'').toLowerCase().includes('coordinador') &&
+    c['status — active, leaving, or inactive']==='active'
+  );
+  const coordEl = document.getElementById('coordNames');
+  if(coordEl && coords.length>0) {
+    coordEl.textContent = coords.map(c=>c['name — full name']).join(' · ');
+  }
+}
+
+// ---- KPI VIEW ----
+function renderKPI() {
+  if(!kpi.length) { document.getElementById('main').innerHTML='<div class="loading">Sin datos de KPI aún</div>'; return; }
+  document.getElementById('main').innerHTML = `
+    <div class="s-hdr"><div class="s-title">KPI semanal</div><div class="s-sub">Bono 2% venta neta · actualiza columnas manuales en el sheet</div></div>
+    <div style="padding:10px 14px;background:var(--dark2);border:1px solid var(--border);border-radius:5px;font-size:11px;color:var(--text3);margin-bottom:14px">
+      <strong style="color:var(--teal)">Columnas manuales (Google Sheets → KPI Summary):</strong> Cost Ratio % · Deny Service % · Uptime % · Checklist % · Reviews Coverage % · 5-Star %
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Semana</th><th>Días aprobados</th><th>Tours</th><th>Ingresos</th><th>Costos %</th><th>Negados %</th><th>Uptime %</th><th>Checklist %</th><th>Reviews %</th><th>5★ %</th><th>Score</th></tr></thead>
+      <tbody>
+        ${[...kpi].reverse().map(r=>{
+          const sc=parseFloat(r['Total KPI Score']);
+          const sc_col=!isNaN(sc)?(sc>=85?'var(--teal)':sc>=70?'var(--amber)':'var(--red)'):'var(--text3)';
+          return `<tr>
+            <td style="color:var(--white)">${r['Week Start']||'—'}</td>
+            <td>${r['Days Approved']||0}/${(n(r['Days Approved']))+(n(r['Days Pending']))}</td>
+            <td>${r['Tours (approved)']||0}</td>
+            <td style="color:var(--teal)">$${fmt(n(r['Revenue (MXN)']))}</td>
+            <td>${r['Cost Ratio %']||'—'}</td>
+            <td>${r['Deny Service %']||'—'}</td>
+            <td>${r['Uptime %']||'—'}</td>
+            <td>${r['Checklist %']||'—'}</td>
+            <td>${r['Reviews Coverage %']||'—'}</td>
+            <td>${r['5-Star %']||'—'}</td>
+            <td style="color:${sc_col};font-weight:700;font-size:14px">${!isNaN(sc)?sc+'%':'—'}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table></div>`;
+}
+
+// ---- BOOKINGS VIEW ----
+function renderBookings() {
+  const filtered = marina==='all' ? bookings : bookings.filter(b=>b['Marina']===marina);
+  document.getElementById('main').innerHTML = `
+    <div class="s-hdr"><div class="s-title">Bookings — FareHarbor live</div><div class="s-sub">${filtered.length} bookings · ${marina==='all'?'Todas las marinas':marina}</div></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Fecha</th><th>Hora</th><th>Item</th><th>Categoría</th><th>Cliente</th><th>País</th><th>Personas</th><th>Affiliate</th><th>Agent</th><th>Marina</th><th>Ingreso</th><th>Status</th></tr></thead>
+      <tbody>
+        ${[...filtered].reverse().slice(0,60).map(b=>`<tr>
+          <td style="color:var(--white)">${b['Tour Date']||'—'}</td>
+          <td>${b['Tour Time']||'—'}</td>
+          <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b['Tour Name']||'—'}</td>
+          <td><span class="cat-tag">${getCategory(b['Tour Name'],b['Tour ID (PK)'])}</span></td>
+          <td>${b['Contact Name']||'—'}</td>
+          <td>${b['Country']||'—'}</td>
+          <td>${b['# People']||0}</td>
+          <td style="color:var(--text3)">${b['Affiliate']||'Direct'}</td>
+          <td>${b['Agent']||'—'}</td>
+          <td>${b['Marina']||'—'}</td>
+          <td style="color:var(--teal);font-weight:600">$${fmt(n(b['Invoice Price (MXN)']))}</td>
+          <td>${pill(b['Status']||'')}</td>
+        </tr>`).join('')||'<tr><td colspan="12" class="empty">Sin bookings</td></tr>'}
+      </tbody>
+    </table></div>`;
+}
+
+// ---- RESOURCES VIEW — fully dynamic ----
+function renderResources() {
+  const marinaGroups = {};
+  resources.forEach(r=>{
+    const m = r['marina — operating location']||'Sin marina';
+    if(!marinaGroups[m]) marinaGroups[m]=[];
+    marinaGroups[m].push(r);
+  });
+
+  document.getElementById('main').innerHTML = `
+    <div class="s-hdr">
+      <div class="s-title">Resources</div>
+      <div class="s-sub">${resources.filter(r=>r['status — active or out_of_service']==='active').length} activos · ${resources.filter(r=>r['status — active or out_of_service']==='out_of_service').length} fuera de servicio · ${resources.length} total</div>
+    </div>
+    ${Object.entries(marinaGroups).map(([marina,res])=>`
+      <div style="margin-bottom:18px">
+        <div class="s-hdr"><div class="s-title">${marina}</div><div class="s-sub">${res.filter(r=>r['status — active or out_of_service']==='active').length}/${res.length} activos</div></div>
+        <div class="res-grid">
+          ${res.map(r=>{
+            const op = r['status — active or out_of_service']==='active';
+            return `<div class="res-card" style="border-left:3px solid ${op?'var(--teal)':'var(--red)'}">
+              <div class="res-name">${r['name — resource name']||'—'}</div>
+              <div class="res-meta">${r['type — type of resource']||'—'} · cap. ${r['max_uses — capacity / max concurrent uses']||'—'}</div>
+              ${r['notes — internal notes']?`<div class="res-meta" style="margin-top:3px;color:var(--text3)">${r['notes — internal notes']}</div>`:''}
+              <div class="res-status ${op?'rs-op':'rs-off'}">${op?'● Operativo':'● Fuera de servicio'}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    `).join('')}
+    <div style="padding:10px 14px;background:var(--dark2);border:1px solid var(--border);border-radius:5px;font-size:11px;color:var(--text3)">
+      Para agregar o editar resources: Google Sheets → pestaña <strong style="color:var(--teal)">Resources</strong>
+    </div>`;
+}
+
+// ---- CREW VIEW — fully dynamic ----
+function renderCrew() {
+  const groups = {};
+  crew.forEach(c=>{
+    const g = c['group — FareHarbor group']||'Sin grupo';
+    if(!groups[g]) groups[g]=[];
+    groups[g].push(c);
+  });
+
+  document.getElementById('main').innerHTML = `
+    <div class="s-hdr">
+      <div class="s-title">Crew</div>
+      <div class="s-sub">${crew.filter(c=>c['status — active, leaving, or inactive']==='active').length} activos · ${crew.length} total</div>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Nombre</th><th>Username</th><th>Role</th><th>Group</th><th>Marina</th><th>Status</th></tr></thead>
+      <tbody>
+        ${crew.map(c=>`<tr>
+          <td style="color:var(--white);font-weight:500">${c['name — full name']||'—'}</td>
+          <td style="color:var(--text3)">${c['username — FareHarbor username']||'—'}</td>
+          <td>${c['role — crew role in FareHarbor']||'—'}</td>
+          <td>${c['group — FareHarbor group']||'—'}</td>
+          <td>${c['marina — primary location']||'—'}</td>
+          <td>${pill(c['status — active, leaving, or inactive']||'')}</td>
+        </tr>`).join('')||'<tr><td colspan="6" class="empty">Sin crew</td></tr>'}
+      </tbody>
+    </table></div>
+    <div style="padding:10px 14px;background:var(--dark2);border:1px solid var(--border);border-radius:5px;font-size:11px;color:var(--text3)">
+      Para agregar o editar crew: Google Sheets → pestaña <strong style="color:var(--teal)">Crew</strong>
+    </div>`;
+}
+
+// ---- ITEMS VIEW — fully dynamic ----
+function renderItems() {
+  const cats = [...new Set(items.map(i=>i['category — dashboard category']).filter(Boolean))];
+
+  document.getElementById('main').innerHTML = `
+    <div class="s-hdr">
+      <div class="s-title">Items (productos)</div>
+      <div class="s-sub">${items.filter(i=>i['status — on or off']==='on').length} activos · ${items.length} total</div>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>ID (pk)</th><th>Nombre</th><th>Categoría</th><th>Marina</th><th>Duración</th><th>Tipo</th><th>Status</th></tr></thead>
+      <tbody>
+        ${items.map(i=>`<tr>
+          <td style="color:var(--text3)">${i['pk — FareHarbor item ID']||'—'}</td>
+          <td style="color:var(--white);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i['name — item name (exact FareHarbor name)']||'—'}</td>
+          <td><span class="cat-tag">${i['category — dashboard category']||'—'}</span></td>
+          <td>${i['marina — operating location']||'—'}</td>
+          <td>${i['duration_hrs — approximate duration']?i['duration_hrs — approximate duration']+' hrs':'—'}</td>
+          <td>${i['booking_type — colectivo or privado or renta']||'—'}</td>
+          <td>${pill(i['status — on or off']||'')}</td>
+        </tr>`).join('')||'<tr><td colspan="7" class="empty">Sin items</td></tr>'}
+      </tbody>
+    </table></div>
+    <div style="padding:10px 14px;background:var(--dark2);border:1px solid var(--border);border-radius:5px;font-size:11px;color:var(--text3)">
+      Para agregar o editar items: Google Sheets → pestaña <strong style="color:var(--teal)">Items</strong> · El pk debe coincidir con el ID en FareHarbor
+    </div>`;
+}
+
+// ---- DETAIL PANELS ----
+function toggleDetail(id) {
+  const p=document.getElementById('detail-'+id);
+  if(!p)return;
+  const vis=p.classList.contains('vis');
+  document.querySelectorAll('.detail').forEach(x=>x.classList.remove('vis'));
+  if(!vis){p.classList.add('vis');p.scrollIntoView({behavior:'smooth',block:'nearest'});}
+}
+function closeDetail(){document.querySelectorAll('.detail').forEach(p=>p.classList.remove('vis'));}
+function scrollToValidation(){const t=document.getElementById('validationTable');if(t)t.scrollIntoView({behavior:'smooth'});}
+
+loadAll();
+</script>
+</body>
+</html>
