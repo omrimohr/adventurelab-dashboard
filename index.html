@@ -219,22 +219,71 @@ tr:hover td{background:var(--dark3);}
 
 </div>
 <script>
-const PUB_ID = '2PACX-1vTvE0XPLrdmmapuFvftdpfu3i2nToHOc-kaCP2ZzUt39QSReR5IezPCM4UJ_h79QjtQ4EFat2F6KxN8';
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzMJBV4E3wFIH_Nij3fpSw_5JBPI0rUCS52kquQLb6eaGGPOcbP3md6ZYENruIk4W_oCg/exec';
 
-const GIDS = {
-  'Bookings':      1099896527,
-  'Resources':     1311481255,
-  'Items':         1880915156,
-  'Crew':          859145813,
-  'Daily Summary': 1788539460,
-  'KPI Summary':   1723578725,
-};
+// State
+let daily=[], kpi=[], bookings=[], resources=[], items=[], crew=[];
+let currentView='ops';
 
-// External resources — cost tracked separately, not in KPI
+// ---- DATE HELPERS ----
+function fmtDate(val) {
+  if (!val) return '—';
+  let d;
+  if (typeof val === 'number') {
+    d = new Date((val - 25569) * 86400 * 1000);
+  } else {
+    d = new Date(val);
+  }
+  if (isNaN(d)) return String(val).substring(0,10);
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
+}
+
+function fmtTime(val) {
+  if (!val) return '—';
+  if (typeof val === 'string' && val.includes(':')) return val.substring(0,5);
+  return val;
+}
+
+function fmtMXN(val) {
+  const n = parseFloat(val) || 0;
+  return '$' + Math.round(n).toLocaleString('es-MX');
+}
+
+// ---- FETCH ALL DATA FROM APPS SCRIPT API ----
+async function loadAll() {
+  document.getElementById('main').innerHTML = '<div class="loading"><div class="spinner"></div>Actualizando...</div>';
+  try {
+    const url = SCRIPT_URL + '?action=data';
+    const r   = await fetch(url);
+    const d   = await r.json();
+
+    if (d.status !== 'ok') throw new Error(d.message);
+
+    bookings  = d.bookings  || [];
+    daily     = d.daily     || [];
+    kpi       = d.kpi       || [];
+    resources = d.resources || [];
+    items     = d.items     || [];
+    crew      = d.crew      || [];
+
+    document.getElementById('lastUpd').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',hour12:false});
+    document.getElementById('connStatus').innerHTML = '<span class="nav-icon" style="color:var(--teal)">●</span> Conectado';
+    updatePending();
+    render();
+  } catch(e) {
+    console.error('Load error:', e);
+    document.getElementById('main').innerHTML = '<div class="loading">Error cargando datos.<br><span style="font-size:10px;color:var(--text3)">'+e.message+'</span></div>';
+    document.getElementById('connStatus').innerHTML = '<span class="nav-icon" style="color:var(--red)">●</span> Error';
+  }
+}
+
+// ---- EXTERNAL RESOURCES ----
 const EXTERNAL_RESOURCES = ['Ramona', 'Skybell', 'La Ramona'];
 
-// Tour category mapping
+// ---- TOUR CATEGORIES ----
 const TOUR_CATEGORIES = {
   'Vela':   ['Sailing Tour','Private Catamaran','Private Monohull','Hobie Cat','Velero','Catamarán','Catamaran','Monocasco'],
   'Motor':  ['Boat Tour','Private Boat Tour','Pontón','Ponton','Sunday FUNDAY','Ramona','Carmelita Private Boat','Healing','Mayan'],
@@ -251,144 +300,48 @@ function getTourCategory(name) {
   return 'Otro';
 }
 
-// State
-let daily=[], kpi=[], bookings=[], resources=[], items=[], crew=[];
-let currentView='ops';
-
-// ---- DATE HELPERS ----
-function fmtDate(val) {
-  if (!val) return '—';
-  // Handle Google Sheets date serial or string
-  let d;
-  if (typeof val === 'number') {
-    // Google Sheets date serial
-    d = new Date((val - 25569) * 86400 * 1000);
-  } else {
-    d = new Date(val);
-  }
-  if (isNaN(d)) return val;
-  const dd = String(d.getDate()).padStart(2,'0');
-  const mm = String(d.getMonth()+1).padStart(2,'0');
-  const yy = String(d.getFullYear()).slice(-2);
-  return `${dd}/${mm}/${yy}`;
-}
-
-function fmtTime(val) {
-  if (!val) return '—';
-  // Already in HH:MM format
-  if (typeof val === 'string' && val.includes(':')) return val.substring(0,5);
-  return val;
-}
-
-function fmtMXN(val) {
-  const n = parseFloat(val) || 0;
-  return '$' + Math.round(n).toLocaleString('es-MX');
+function isExternalResource(resName) {
+  return EXTERNAL_RESOURCES.some(e => (resName||'').toLowerCase().includes(e.toLowerCase()));
 }
 
 // ---- ACTUAL PEOPLE COUNT from Raw JSON ----
 function getActualPeople(row) {
-  // First try the actual_people_count column if it exists
   const actual = parseFloat(row['# People (actual)']);
   if (actual && actual > 0) return actual;
-
-  // Fall back to parsing Raw JSON
   const raw = row['Raw JSON'];
   if (!raw) return parseFloat(row['# People (FH)']) || parseFloat(row['# People']) || 0;
-
   try {
     const booking = JSON.parse(raw).booking;
     if (!booking || !booking.customers) return booking.customer_count || 0;
-
     const peopleKeywords = ['personas','people','kayak','cuantas','how many','numero de'];
     let total = 0;
-
     booking.customers.forEach(function(c) {
-      let foundField = false;
+      let found = false;
       if (c.custom_field_values) {
         c.custom_field_values.forEach(function(cfv) {
           const fname = (cfv.name || '').toLowerCase();
-          const isMatch = peopleKeywords.some(k => fname.includes(k));
-          if (isMatch && cfv.display_value && !isNaN(parseInt(cfv.display_value))) {
+          if (peopleKeywords.some(k => fname.includes(k)) && cfv.display_value && !isNaN(parseInt(cfv.display_value))) {
             total += parseInt(cfv.display_value);
-            foundField = true;
+            found = true;
           }
         });
       }
-      if (!foundField) total += 1;
+      if (!found) total += 1;
     });
-
     return total > 0 ? total : (booking.customer_count || 0);
   } catch(e) {
     return parseFloat(row['# People (FH)']) || parseFloat(row['# People']) || 0;
   }
 }
 
-// ---- REVENUE — always use receipt_total ----
+// ---- REVENUE ----
 function getRevenue(row) {
   const rt = parseFloat(row['Receipt Total (MXN)']) || 0;
   if (rt > 0) return rt;
-  // fallback
   return parseFloat(row['Invoice Price (MXN)']) || 0;
 }
 
-// ---- FETCH ----
-async function fetchTab(name) {
-  const gid = GIDS[name];
-  const url = `https://docs.google.com/spreadsheets/d/e/${PUB_ID}/pub?output=csv&gid=${gid}`;
-  try {
-    const r = await fetch(url);
-    const t = await r.text();
-    if (!t || t.includes('<!DOCTYPE')) return [];
 
-    const rows = t.split('\n').map(row => {
-      // Parse CSV properly handling quoted fields
-      const cells = [];
-      let cur = '', inQ = false;
-      for (let i = 0; i < row.length; i++) {
-        if (row[i] === '"') { inQ = !inQ; }
-        else if (row[i] === ',' && !inQ) { cells.push(cur.trim()); cur = ''; }
-        else { cur += row[i]; }
-      }
-      cells.push(cur.trim());
-      return cells;
-    });
-
-    if (rows.length < 2) return [];
-    const headers = rows[0];
-    return rows.slice(1)
-      .filter(r => r.some(v => v !== ''))
-      .map(r => headers.reduce((o, h, i) => {
-        o[h] = r[i] || '';
-        return o;
-      }, {}));
-  } catch(e) {
-    console.error('Error fetching ' + name, e);
-    return [];
-  }
-}
-
-async function loadAll() {
-  document.getElementById('main').innerHTML = '<div class="loading"><div class="spinner"></div>Actualizando...</div>';
-  try {
-    [daily, kpi, bookings, resources, items, crew] = await Promise.all([
-      fetchTab('Daily Summary').catch(()=>[]),
-      fetchTab('KPI Summary').catch(()=>[]),
-      fetchTab('Bookings').catch(()=>[]),
-      fetchTab('Resources').catch(()=>[]),
-      fetchTab('Items').catch(()=>[]),
-      fetchTab('Crew').catch(()=>[]),
-    ]);
-    document.getElementById('lastUpd').textContent = 'Actualizado: '+new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',hour12:false});
-    document.getElementById('connStatus').innerHTML = '<span class="nav-icon" style="color:var(--teal)">●</span> Conectado';
-    updatePending();
-    render();
-  } catch(e) {
-    document.getElementById('main').innerHTML = '<div class="loading">Error cargando datos.</div>';
-    document.getElementById('connStatus').innerHTML = '<span class="nav-icon" style="color:var(--red)">●</span> Error';
-  }
-}
-
-function updatePending() {
   const n = daily.filter(r=>r['Validation Status']==='Pending').length;
   const b = document.getElementById('pendingBadge');
   document.getElementById('pendingText').textContent = n>0 ? n+(n===1?' día pendiente':' días pendientes') : 'Todo aprobado';
@@ -399,19 +352,25 @@ function updatePending() {
 async function approveDay(dateStr, btnEl) {
   btnEl.disabled = true;
   btnEl.textContent = '...';
-  btnEl.classList.add('loading');
   try {
-    await fetch(SCRIPT_URL + '?action=approve&date=' + encodeURIComponent(dateStr), {
-      method: 'GET', mode: 'no-cors'
-    });
-    // Optimistically update UI
-    const row = daily.find(r=>r['Date']===dateStr);
-    if (row) row['Validation Status'] = 'Approved';
-    updatePending();
-    renderValidation();
+    const url = SCRIPT_URL + '?action=approve&date=' + encodeURIComponent(dateStr);
+    const r   = await fetch(url);
+    const d   = await r.json();
+    if (d.status === 'ok') {
+      // Update local state
+      const row = daily.find(r => r['Date'] === dateStr);
+      if (row) row['Validation Status'] = 'Approved';
+      updatePending();
+      renderValidation();
+    } else {
+      btnEl.textContent = 'Error';
+      btnEl.disabled = false;
+      console.error('Approve error:', d.message);
+    }
   } catch(e) {
     btnEl.textContent = 'Error';
     btnEl.disabled = false;
+    console.error('Approve fetch error:', e);
   }
 }
 
