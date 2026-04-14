@@ -6,934 +6,1578 @@
 <title>Adventure Lab — Operaciones</title>
 <link href="https://fonts.googleapis.com/css2?family=Asap:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <style>
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
 :root {
-  --teal:    #5AC0C8;
-  --teal-d:  #3a8a90;
-  --teal-bg: rgba(90,192,200,0.08);
-  --dark:    #2E282A;
-  --dark2:   #3d3438;
-  --dark3:   #4a3e43;
-  --white:   #FFFFFF;
-  --border:  rgba(90,192,200,0.15);
-  --border2: rgba(90,192,200,0.28);
-  --text:    #FFFFFF;
-  --text2:   #9ecfd3;
-  --text3:   #5a8a8e;
-  --green:   #4caf7d;
-  --green-bg:rgba(76,175,125,0.12);
-  --amber:   #f0b429;
-  --amber-bg:rgba(240,180,41,0.12);
-  --red:     #e05252;
-  --red-bg:  rgba(224,82,82,0.12);
-  --orange:  #E94F25;
-  --orange-bg:rgba(233,79,37,0.12);
+  --teal:       #5AC0C8;
+  --teal-d:     #3a8a90;
+  --teal-bg:    rgba(90,192,200,0.08);
+  --teal-bg2:   rgba(90,192,200,0.15);
+  --dark:       #2E282A;
+  --dark2:      #3d3438;
+  --dark3:      #4a3e43;
+  --dark4:      #564850;
+  --white:      #FFFFFF;
+  --border:     rgba(90,192,200,0.14);
+  --border2:    rgba(90,192,200,0.28);
+  --text:       #FFFFFF;
+  --text2:      #9ecfd3;
+  --text3:      #5a8a8e;
+  --green:      #4caf7d;
+  --green-bg:   rgba(76,175,125,0.12);
+  --amber:      #f0b429;
+  --amber-bg:   rgba(240,180,41,0.12);
+  --red:        #e05252;
+  --red-bg:     rgba(224,82,82,0.12);
+  --orange:     #E94F25;
+  --orange-bg:  rgba(233,79,37,0.10);
+  --purple:     #9b59b6;
+  --purple-bg:  rgba(155,89,182,0.10);
+  --sidebar-w:  188px;
+  --topbar-h:   56px;
 }
-*{box-sizing:border-box;margin:0;padding:0;}
-html,body{height:100%;}
-body{font-family:'Asap',sans-serif;background:var(--dark);color:var(--text);min-height:100vh;}
 
-.shell{display:grid;grid-template-columns:180px 1fr;grid-template-rows:58px 1fr;min-height:100vh;}
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: 'Asap', sans-serif; background: var(--dark); color: var(--text); min-height: 100vh; font-size: 13px; }
+button { font-family: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; }
+a { color: var(--teal); text-decoration: none; }
 
-/* TOPBAR */
-.topbar{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:var(--dark);border-bottom:1px solid var(--border2);}
-.logo-area{display:flex;align-items:center;gap:12px;}
-.logo-svg{width:32px;height:32px;flex-shrink:0;}
-.logo-name{font-size:15px;font-weight:700;color:var(--white);letter-spacing:.04em;}
-.logo-name span{color:var(--teal);}
-.logo-tag{font-size:9px;color:var(--teal);font-style:italic;letter-spacing:.1em;margin-top:1px;}
-.topbar-center{font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--text3);}
-.topbar-right{display:flex;align-items:center;gap:12px;}
-.pending-badge{display:flex;align-items:center;gap:7px;padding:5px 12px;border-radius:3px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid rgba(224,82,82,.4);background:var(--red-bg);color:var(--red);transition:all .15s;}
-.pending-badge.ok{border-color:rgba(90,192,200,.3);background:var(--teal-bg);color:var(--teal);}
-.pending-dot{width:6px;height:6px;border-radius:50%;background:var(--red);animation:pulse 1.5s infinite;}
-.pending-badge.ok .pending-dot{background:var(--teal);animation:none;}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-.last-upd{font-size:10px;color:var(--text3);}
-.refresh-btn{font-size:11px;font-weight:600;padding:5px 14px;border:1px solid var(--teal-d);border-radius:3px;background:transparent;color:var(--teal);cursor:pointer;transition:all .15s;}
-.refresh-btn:hover{background:var(--teal-bg);}
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.shell { display: grid; grid-template-columns: var(--sidebar-w) 1fr; grid-template-rows: var(--topbar-h) 1fr; min-height: 100vh; }
 
-/* SIDEBAR */
-.sidebar{background:var(--dark2);border-right:1px solid var(--border);padding:12px 0;overflow-y:auto;}
-.nav-label{font-size:9px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--text3);padding:0 14px;margin:14px 0 5px;}
-.nav-item{display:flex;align-items:center;gap:9px;padding:8px 14px;font-size:12px;font-weight:500;color:var(--text2);cursor:pointer;border-left:2px solid transparent;transition:all .15s;}
-.nav-item:hover{color:var(--white);background:var(--dark3);}
-.nav-item.active{color:var(--teal);border-left-color:var(--teal);background:var(--teal-bg);}
-.nav-icon{font-size:12px;width:14px;text-align:center;}
-.nav-divider{height:1px;background:var(--border);margin:8px 14px;}
+/* ============================================================
+   TOPBAR
+   ============================================================ */
+.topbar {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px;
+  background: var(--dark);
+  border-bottom: 1px solid var(--border2);
+  position: sticky; top: 0; z-index: 100;
+}
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-svg { width: 30px; height: 30px; flex-shrink: 0; }
+.logo-text { font-size: 14px; font-weight: 700; letter-spacing: .04em; }
+.logo-text span { color: var(--teal); }
+.logo-tag { font-size: 9px; color: var(--teal); font-style: italic; letter-spacing: .1em; margin-top: 1px; }
+.topbar-center { font-size: 9px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--text3); }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.badge-alert {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 11px; border-radius: 3px; font-size: 10px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.badge-alert.red    { border: 1px solid rgba(224,82,82,.4); background: var(--red-bg); color: var(--red); }
+.badge-alert.amber  { border: 1px solid rgba(240,180,41,.4); background: var(--amber-bg); color: var(--amber); }
+.badge-alert.ok     { border: 1px solid rgba(90,192,200,.3); background: var(--teal-bg); color: var(--teal); }
+.badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.badge-dot.pulse { animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.3} }
+.upd-time { font-size: 10px; color: var(--text3); }
+.btn-refresh { font-size: 10px; font-weight: 600; padding: 4px 12px; border: 1px solid var(--teal-d); border-radius: 3px; background: transparent; color: var(--teal); transition: all .15s; }
+.btn-refresh:hover { background: var(--teal-bg); }
 
-/* MAIN */
-.main{padding:20px 22px;overflow-y:auto;background:var(--dark);}
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+.sidebar { background: var(--dark2); border-right: 1px solid var(--border); overflow-y: auto; padding: 8px 0 20px; }
+.nav-section { font-size: 8px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--text3); padding: 12px 14px 4px; }
+.nav-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 14px; font-size: 11px; font-weight: 500;
+  color: var(--text2); cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: all .12s;
+  white-space: nowrap; overflow: hidden;
+}
+.nav-item:hover { color: var(--white); background: var(--dark3); }
+.nav-item.active { color: var(--teal); border-left-color: var(--teal); background: var(--teal-bg); }
+.nav-icon { font-size: 11px; width: 13px; text-align: center; flex-shrink: 0; }
+.nav-chip { font-size: 9px; background: var(--red-bg); color: var(--red); padding: 1px 5px; border-radius: 2px; margin-left: auto; font-weight: 700; }
+.nav-chip.ok { background: var(--teal-bg); color: var(--teal); }
+.nav-chip.amber { background: var(--amber-bg); color: var(--amber); }
+.nav-divider { height: 1px; background: var(--border); margin: 6px 14px; }
+.conn-status { display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 10px; color: var(--text3); }
 
-/* SECTION HEADER */
-.s-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
-.s-title{font-size:9px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--text3);}
-.s-sub{font-size:11px;color:var(--text3);}
+/* ============================================================
+   MAIN CONTENT
+   ============================================================ */
+.main { padding: 18px 20px; overflow-y: auto; background: var(--dark); }
+.loading { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 220px; gap: 10px; color: var(--text3); font-size: 12px; }
+.spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--teal); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty { color: var(--text3); font-size: 11px; text-align: center; padding: 16px 0; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+.fade-up { animation: fadeUp .25s ease both; }
 
-/* METRIC CARDS */
-.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
-.m-card{background:var(--dark2);border:1px solid var(--border);border-top:2px solid var(--teal);border-radius:5px;padding:14px 16px;animation:up .3s ease both;}
-.m-card:nth-child(2){animation-delay:.05s}.m-card:nth-child(3){animation-delay:.1s}.m-card:nth-child(4){animation-delay:.15s}
-@keyframes up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.m-lbl{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;}
-.m-val{font-size:26px;font-weight:700;color:var(--white);}
-.m-sub{font-size:11px;color:var(--text2);margin-top:3px;}
+/* ============================================================
+   PAGE HEADER
+   ============================================================ */
+.page-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.page-title { font-size: 9px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--text3); }
+.page-sub { font-size: 11px; color: var(--text3); }
 
-/* KPI CARDS */
-.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;}
-.k-card{background:var(--dark2);border:1px solid var(--border);border-radius:5px;padding:12px 13px;cursor:pointer;transition:all .2s;}
-.k-card:hover{border-color:var(--border2);transform:translateY(-1px);}
-.k-card.active{border-color:var(--teal);}
-.k-card.c-g{border-left:3px solid var(--teal);}
-.k-card.c-a{border-left:3px solid var(--amber);}
-.k-card.c-r{border-left:3px solid var(--red);}
-.k-card.c-n{border-left:3px solid var(--text3);}
-.k-top{display:flex;justify-content:space-between;margin-bottom:7px;}
-.k-name{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text2);}
-.k-wt{font-size:9px;color:var(--text3);}
-.k-val{font-size:22px;font-weight:700;margin-bottom:5px;}
-.k-val.g{color:var(--teal)}.k-val.a{color:var(--amber)}.k-val.r{color:var(--red)}.k-val.n{color:var(--text3)}
-.k-bar{height:2px;background:var(--border);border-radius:1px;margin-bottom:5px;overflow:hidden;}
-.k-fill{height:100%;border-radius:1px;transition:width 1s ease;}
-.f-g{background:var(--teal)}.f-a{background:var(--amber)}.f-r{background:var(--red)}.f-n{background:var(--text3)}
-.k-meta{font-size:9px;color:var(--text3);}
-.badge{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:2px;margin-bottom:5px;}
-.b-g{background:var(--teal-bg);color:var(--teal)}.b-a{background:var(--amber-bg);color:var(--amber)}.b-r{background:var(--red-bg);color:var(--red)}.b-n{background:rgba(255,255,255,.05);color:var(--text3)}
+/* ============================================================
+   METRIC CARDS
+   ============================================================ */
+.metrics { display: grid; gap: 10px; margin-bottom: 14px; }
+.metrics-4 { grid-template-columns: repeat(4,1fr); }
+.metrics-3 { grid-template-columns: repeat(3,1fr); }
+.metrics-2 { grid-template-columns: repeat(2,1fr); }
+.m-card { background: var(--dark2); border: 1px solid var(--border); border-top: 2px solid var(--teal); border-radius: 5px; padding: 13px 15px; animation: fadeUp .3s ease both; }
+.m-card:nth-child(2){animation-delay:.04s}.m-card:nth-child(3){animation-delay:.08s}.m-card:nth-child(4){animation-delay:.12s}
+.m-lbl { font-size: 8px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text3); margin-bottom: 5px; }
+.m-val { font-size: 24px; font-weight: 700; color: var(--white); line-height: 1; }
+.m-sub { font-size: 10px; color: var(--text2); margin-top: 3px; }
+.m-card.accent-amber { border-top-color: var(--amber); }
+.m-card.accent-green { border-top-color: var(--green); }
+.m-card.accent-red   { border-top-color: var(--red); }
 
-/* DETAIL PANEL */
-.detail{background:var(--dark2);border:1px solid var(--border2);border-radius:5px;padding:16px 18px;margin-bottom:16px;display:none;}
-.detail.vis{display:block;animation:up .2s ease;}
-.d-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
-.d-title{font-size:13px;font-weight:700;color:var(--white);}
-.close-btn{font-size:10px;padding:3px 8px;border:1px solid var(--border2);border-radius:3px;background:transparent;color:var(--text3);cursor:pointer;}
-.d-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-.d-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;}
-.d-row:last-child{border-bottom:none;}
-.d-k{color:var(--text2);}
-.d-v{font-size:11px;color:var(--white);}
-.d-v.g{color:var(--teal)}.d-v.a{color:var(--amber)}.d-v.r{color:var(--red)}
-.sub-t{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-bottom:8px;}
+/* ============================================================
+   KPI CARDS
+   ============================================================ */
+.kpis { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; margin-bottom: 14px; }
+.k-card { background: var(--dark2); border: 1px solid var(--border); border-radius: 5px; padding: 11px 12px; cursor: pointer; transition: all .18s; }
+.k-card:hover { border-color: var(--border2); transform: translateY(-1px); }
+.k-top { display: flex; justify-content: space-between; margin-bottom: 5px; }
+.k-name { font-size: 8px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text2); }
+.k-wt { font-size: 8px; color: var(--text3); }
+.k-badge { display: inline-block; font-size: 8px; font-weight: 700; letter-spacing: .04em; padding: 1px 5px; border-radius: 2px; margin-bottom: 4px; }
+.k-val { font-size: 20px; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+.k-bar { height: 2px; background: var(--border); border-radius: 1px; margin-bottom: 4px; overflow: hidden; }
+.k-fill { height: 100%; border-radius: 1px; transition: width .9s ease; }
+.k-meta { font-size: 9px; color: var(--text3); }
+/* KPI colors */
+.c-g .k-card, .c-g { border-left: 3px solid var(--teal); }
+.c-a .k-card, .c-a { border-left: 3px solid var(--amber); }
+.c-r .k-card, .c-r { border-left: 3px solid var(--red); }
+.c-n .k-card, .c-n { border-left: 3px solid var(--text3); }
+.v-g { color: var(--teal); } .v-a { color: var(--amber); } .v-r { color: var(--red); } .v-n { color: var(--text3); }
+.f-g { background: var(--teal); } .f-a { background: var(--amber); } .f-r { background: var(--red); } .f-n { background: var(--text3); }
+.b-g { background: var(--teal-bg); color: var(--teal); }
+.b-a { background: var(--amber-bg); color: var(--amber); }
+.b-r { background: var(--red-bg); color: var(--red); }
+.b-n { background: rgba(255,255,255,.05); color: var(--text3); }
 
-/* BOTTOM GRID */
-.bot-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;}
-.panel{background:var(--dark2);border:1px solid var(--border);border-radius:5px;padding:13px 15px;}
-.p-title{font-size:9px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--text3);margin-bottom:10px;}
-.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
-.b-lbl{font-size:11px;color:var(--text2);width:80px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.b-track{flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden;}
-.b-fill{height:100%;background:var(--teal);border-radius:2px;transition:width .8s ease;}
-.b-val{font-size:11px;color:var(--white);font-weight:600;width:60px;text-align:right;}
+/* ============================================================
+   TABLES
+   ============================================================ */
+.tbl-wrap { background: var(--dark2); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; margin-bottom: 14px; }
+.tbl-hdr { display: flex; justify-content: space-between; align-items: center; padding: 10px 13px; border-bottom: 1px solid var(--border); }
+.tbl-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 11px; }
+th { text-align: left; padding: 7px 11px; font-size: 8px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--text3); border-bottom: 1px solid var(--border); background: var(--dark3); white-space: nowrap; }
+td { padding: 7px 11px; color: var(--text2); border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(90,192,200,.04); }
+.td-white { color: var(--white) !important; font-weight: 500; }
+.td-teal  { color: var(--teal) !important; font-weight: 600; }
+.td-amber { color: var(--amber) !important; }
+.td-red   { color: var(--red) !important; }
+.td-muted { color: var(--text3) !important; font-size: 10px; }
+.td-nowrap { white-space: nowrap; }
+.td-trunc { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* TABLE */
-.tbl-wrap{background:var(--dark2);border:1px solid var(--border);border-radius:5px;overflow:hidden;margin-bottom:16px;}
-.tbl-hdr{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:1px solid var(--border);}
-table{width:100%;border-collapse:collapse;font-size:11px;}
-th{text-align:left;padding:8px 12px;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border);background:var(--dark3);}
-td{padding:8px 12px;color:var(--text2);border-bottom:1px solid var(--border);}
-tr:last-child td{border-bottom:none;}
-tr:hover td{background:var(--dark3);}
-.pill{display:inline-block;font-size:9px;font-weight:700;padding:2px 7px;border-radius:2px;letter-spacing:.04em;}
-.p-ok{background:var(--teal-bg);color:var(--teal);}
-.p-pend{background:var(--amber-bg);color:var(--amber);}
-.p-bad{background:var(--red-bg);color:var(--red);}
-.p-off{background:rgba(255,255,255,.05);color:var(--text3);}
-.cat-tag{display:inline-block;font-size:9px;font-weight:600;padding:1px 6px;border-radius:2px;background:var(--teal-bg);color:var(--teal);}
-.ext-tag{display:inline-block;font-size:9px;font-weight:600;padding:1px 6px;border-radius:2px;background:var(--orange-bg);color:var(--orange);}
+/* ============================================================
+   PILLS & TAGS
+   ============================================================ */
+.pill { display: inline-block; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 2px; letter-spacing: .03em; white-space: nowrap; }
+.p-ok     { background: var(--teal-bg); color: var(--teal); }
+.p-pend   { background: var(--amber-bg); color: var(--amber); }
+.p-bad    { background: var(--red-bg); color: var(--red); }
+.p-off    { background: rgba(255,255,255,.05); color: var(--text3); }
+.p-orange { background: var(--orange-bg); color: var(--orange); }
+.p-green  { background: var(--green-bg); color: var(--green); }
+.cat-tag  { display: inline-block; font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 2px; background: var(--teal-bg); color: var(--teal); }
+.stars    { color: var(--amber); font-size: 12px; letter-spacing: 1px; }
 
-/* APPROVE BUTTON */
-.approve-btn{font-size:10px;font-weight:700;padding:4px 12px;border:1px solid var(--teal);border-radius:3px;background:transparent;color:var(--teal);cursor:pointer;transition:all .15s;letter-spacing:.05em;}
-.approve-btn:hover{background:var(--teal);color:var(--dark);}
-.approve-btn:disabled{opacity:.4;cursor:not-allowed;}
-.approve-btn.loading{opacity:.6;}
+/* ============================================================
+   PANELS
+   ============================================================ */
+.panel { background: var(--dark2); border: 1px solid var(--border); border-radius: 5px; padding: 12px 14px; margin-bottom: 14px; }
+.panel-title { font-size: 8px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--text3); margin-bottom: 10px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 
-/* AVAILABILITY CARD */
-.avail-card{background:var(--dark2);border:1px solid var(--border);border-radius:5px;padding:12px 14px;margin-bottom:8px;}
-.avail-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
-.avail-name{font-size:13px;font-weight:600;color:var(--white);}
-.avail-time{font-size:11px;color:var(--text3);}
-.avail-meta{display:flex;gap:16px;font-size:11px;color:var(--text2);}
-.avail-crew{font-size:10px;color:var(--text3);margin-top:6px;}
-.avail-bookings{margin-top:8px;border-top:1px solid var(--border);padding-top:8px;}
+/* ============================================================
+   BAR ROWS
+   ============================================================ */
+.bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.br-lbl { font-size: 10px; color: var(--text2); width: 80px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.br-track { flex: 1; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.br-fill { height: 100%; background: var(--teal); border-radius: 2px; transition: width .8s ease; }
+.br-val { font-size: 10px; color: var(--white); font-weight: 600; min-width: 55px; text-align: right; }
 
-/* RESOURCE GRID */
-.res-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
-.res-card{background:var(--dark3);border:1px solid var(--border);border-radius:4px;padding:10px 12px;}
-.res-name{font-size:12px;font-weight:600;color:var(--white);margin-bottom:3px;}
-.res-meta{font-size:10px;color:var(--text3);}
-.res-status{font-size:9px;font-weight:700;margin-top:5px;}
-.rs-op{color:var(--teal)}.rs-off{color:var(--red)}.rs-ext{color:var(--orange);}
+/* ============================================================
+   RESOURCE CARDS
+   ============================================================ */
+.res-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 14px; }
+.res-card { background: var(--dark3); border: 1px solid var(--border); border-radius: 4px; padding: 9px 11px; }
+.res-name { font-size: 11px; font-weight: 600; color: var(--white); margin-bottom: 3px; }
+.res-meta { font-size: 9px; color: var(--text3); }
+.res-status { font-size: 9px; font-weight: 700; margin-top: 5px; }
 
-/* LOADING */
-.loading{display:flex;align-items:center;justify-content:center;height:200px;flex-direction:column;gap:10px;color:var(--text3);font-size:12px;}
-.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--teal);border-radius:50%;animation:spin .8s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg)}}
-.empty{color:var(--text3);font-size:11px;text-align:center;padding:14px 0;}
+/* ============================================================
+   FORMS
+   ============================================================ */
+.form-overlay { display: none; position: fixed; inset: 0; background: rgba(46,40,42,.85); z-index: 200; align-items: center; justify-content: center; }
+.form-overlay.open { display: flex; animation: fadeUp .2s ease; }
+.form-box { background: var(--dark2); border: 1px solid var(--border2); border-radius: 6px; padding: 20px 22px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+.form-title { font-size: 14px; font-weight: 700; color: var(--white); margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+.form-close { font-size: 18px; color: var(--text3); cursor: pointer; line-height: 1; }
+.form-close:hover { color: var(--white); }
+.form-row { margin-bottom: 12px; }
+.form-row label { display: block; font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text3); margin-bottom: 4px; }
+.form-row input,
+.form-row select,
+.form-row textarea {
+  width: 100%; padding: 7px 10px;
+  background: var(--dark3); border: 1px solid var(--border2);
+  border-radius: 3px; color: var(--white); font-size: 12px;
+  transition: border-color .15s;
+}
+.form-row input:focus,
+.form-row select:focus,
+.form-row textarea:focus { outline: none; border-color: var(--teal); }
+.form-row select option { background: var(--dark3); }
+.form-row textarea { resize: vertical; min-height: 60px; }
+.form-row .hint { font-size: 9px; color: var(--text3); margin-top: 3px; }
+.form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.btn { padding: 7px 16px; border-radius: 3px; font-size: 11px; font-weight: 600; border: none; transition: all .15s; }
+.btn-primary { background: var(--teal); color: var(--dark); }
+.btn-primary:hover { background: var(--teal-d); }
+.btn-secondary { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
+.btn-secondary:hover { color: var(--white); border-color: var(--text2); }
+.btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid rgba(224,82,82,.3); }
+.btn-danger:hover { background: var(--red); color: var(--white); }
+.btn-sm { padding: 4px 10px; font-size: 10px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.form-msg { font-size: 11px; padding: 7px 10px; border-radius: 3px; margin-top: 10px; display: none; }
+.form-msg.ok  { background: var(--green-bg); color: var(--green); display: block; }
+.form-msg.err { background: var(--red-bg); color: var(--red); display: block; }
+
+/* ============================================================
+   APPROVE BUTTON
+   ============================================================ */
+.btn-approve { font-size: 9px; font-weight: 700; padding: 4px 10px; border: 1px solid var(--teal); border-radius: 3px; background: transparent; color: var(--teal); cursor: pointer; transition: all .15s; letter-spacing: .04em; }
+.btn-approve:hover { background: var(--teal); color: var(--dark); }
+.btn-approve:disabled { opacity: .4; cursor: not-allowed; }
+
+/* ============================================================
+   BOAT READINESS
+   ============================================================ */
+.boat-card { background: var(--dark2); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; margin-bottom: 10px; }
+.boat-card-hdr { display: flex; justify-content: space-between; align-items: center; padding: 10px 13px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.boat-card-name { font-size: 13px; font-weight: 600; color: var(--white); }
+.boat-docs-list { padding: 8px 13px; }
+.doc-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 11px; }
+.doc-row:last-child { border-bottom: none; }
+.doc-name { color: var(--text2); }
+.doc-expiry { color: var(--text3); font-size: 10px; }
+
+/* ============================================================
+   GASOLINE INVENTORY
+   ============================================================ */
+.inv-card { background: var(--dark2); border: 1px solid var(--border); border-radius: 5px; padding: 14px 16px; text-align: center; }
+.inv-val { font-size: 36px; font-weight: 700; color: var(--teal); line-height: 1; }
+.inv-unit { font-size: 11px; color: var(--text3); margin-top: 3px; }
+.inv-sub { font-size: 10px; color: var(--text2); margin-top: 6px; }
+
+/* ============================================================
+   PAYMENT ROWS
+   ============================================================ */
+.pay-total { font-size: 16px; font-weight: 700; color: var(--white); }
+.adj-input { width: 80px; padding: 3px 6px; background: var(--dark3); border: 1px solid var(--border2); border-radius: 3px; color: var(--white); font-size: 11px; text-align: right; }
+
+/* ============================================================
+   DETAIL PANELS (collapsible)
+   ============================================================ */
+.detail-panel { display: none; background: var(--dark2); border: 1px solid var(--border2); border-radius: 5px; padding: 14px 16px; margin-bottom: 14px; animation: fadeUp .2s ease; }
+.detail-panel.open { display: block; }
+.detail-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.detail-title { font-size: 13px; font-weight: 700; color: var(--white); }
+.btn-close { font-size: 10px; padding: 3px 8px; border: 1px solid var(--border2); border-radius: 3px; background: transparent; color: var(--text3); cursor: pointer; }
+
+/* ============================================================
+   TOAST NOTIFICATIONS
+   ============================================================ */
+#toast {
+  position: fixed; bottom: 20px; right: 20px; z-index: 300;
+  padding: 10px 16px; border-radius: 4px; font-size: 12px; font-weight: 500;
+  transform: translateY(60px); opacity: 0; transition: all .25s;
+  pointer-events: none;
+}
+#toast.show { transform: translateY(0); opacity: 1; }
+#toast.ok  { background: var(--green); color: #fff; }
+#toast.err { background: var(--red); color: #fff; }
+#toast.info { background: var(--teal); color: var(--dark); }
+
+/* ============================================================
+   INFO BOX
+   ============================================================ */
+.info-box { padding: 8px 12px; background: var(--teal-bg); border: 1px solid var(--border2); border-radius: 4px; font-size: 10px; color: var(--text2); margin-bottom: 12px; }
+.warn-box { padding: 8px 12px; background: var(--amber-bg); border: 1px solid rgba(240,180,41,.3); border-radius: 4px; font-size: 10px; color: var(--amber); margin-bottom: 12px; }
 </style>
 </head>
 <body>
+
 <div class="shell">
 
-<!-- TOPBAR -->
+<!-- ============================================================
+     TOPBAR
+     ============================================================ -->
 <div class="topbar">
-  <div class="logo-area">
-    <svg class="logo-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <div class="logo">
+    <svg class="logo-svg" viewBox="0 0 100 100" fill="none">
       <path d="M50 8 L88 82 H66 L50 46 L34 82 H12 Z" fill="#5AC0C8"/>
       <path d="M37 64 H63 L58 76 H42 Z" fill="#2E282A"/>
     </svg>
     <div>
-      <div class="logo-name"><span>ADVENTURE</span>LAB®</div>
+      <div class="logo-text"><span>ADVENTURE</span>LAB®</div>
       <div class="logo-tag">Discover pure nature</div>
     </div>
   </div>
   <div class="topbar-center">Panel de Operaciones</div>
   <div class="topbar-right">
-    <div class="pending-badge" id="pendingBadge" onclick="setView('validation',null)">
-      <div class="pending-dot"></div>
-      <span id="pendingText">Cargando...</span>
+    <div class="badge-alert ok" id="badge-pending" onclick="nav('validacion')">
+      <div class="badge-dot"></div>
+      <span id="badge-pending-text">Cargando...</span>
     </div>
-    <div class="last-upd" id="lastUpd">—</div>
-    <button class="refresh-btn" onclick="loadAll()">↺ Actualizar</button>
+    <div class="badge-alert amber" id="badge-payments" onclick="nav('pagos')" style="display:none">
+      <div class="badge-dot pulse"></div>
+      <span id="badge-payments-text">Pagos</span>
+    </div>
+    <div class="upd-time" id="upd-time">—</div>
+    <button class="btn-refresh" onclick="loadAll()">↺ Actualizar</button>
   </div>
 </div>
 
-<!-- SIDEBAR -->
+<!-- ============================================================
+     SIDEBAR
+     ============================================================ -->
 <div class="sidebar">
-  <div class="nav-label">Vistas</div>
-  <div class="nav-item active" onclick="setView('ops',this)"><span class="nav-icon">◉</span> Operaciones</div>
-  <div class="nav-item" onclick="setView('validation',this)"><span class="nav-icon">✓</span> Validación</div>
-  <div class="nav-item" onclick="setView('kpi',this)"><span class="nav-icon">◈</span> KPIs</div>
-  <div class="nav-item" onclick="setView('tours',this)"><span class="nav-icon">◇</span> Tours</div>
-  <div class="nav-item" onclick="setView('bookings',this)"><span class="nav-icon">◆</span> Bookings</div>
+  <div class="nav-section">Operaciones</div>
+  <div class="nav-item active" data-view="resumen"      onclick="nav('resumen',this)"><span class="nav-icon">◉</span> Resumen</div>
+  <div class="nav-item"        data-view="validacion"   onclick="nav('validacion',this)"><span class="nav-icon">✓</span> Validación <span class="nav-chip" id="chip-pending">0</span></div>
+  <div class="nav-item"        data-view="tours"        onclick="nav('tours',this)"><span class="nav-icon">◇</span> Tours</div>
+  <div class="nav-item"        data-view="bookings"     onclick="nav('bookings',this)"><span class="nav-icon">◆</span> Bookings</div>
   <div class="nav-divider"></div>
-  <div class="nav-label">Referencia</div>
-  <div class="nav-item" onclick="setView('resources',this)"><span class="nav-icon">◁</span> Resources</div>
-  <div class="nav-item" onclick="setView('crew',this)"><span class="nav-icon">◎</span> Crew</div>
-  <div class="nav-item" onclick="setView('items',this)"><span class="nav-icon">▣</span> Items</div>
+  <div class="nav-section">Registro</div>
+  <div class="nav-item"        data-view="gasoline"     onclick="nav('gasoline',this)"><span class="nav-icon">⛽</span> Gasolina</div>
+  <div class="nav-item"        data-view="maintenance"  onclick="nav('maintenance',this)"><span class="nav-icon">🔧</span> Mantenimiento</div>
+  <div class="nav-item"        data-view="denied"       onclick="nav('denied',this)"><span class="nav-icon">✕</span> Negaciones</div>
+  <div class="nav-item"        data-view="reviews"      onclick="nav('reviews',this)"><span class="nav-icon">★</span> Reviews</div>
   <div class="nav-divider"></div>
-  <div class="nav-item" id="connStatus"><span class="nav-icon" style="color:var(--text3)">●</span> Conectando...</div>
+  <div class="nav-section">Administración</div>
+  <div class="nav-item"        data-view="kpi"          onclick="nav('kpi',this)"><span class="nav-icon">◈</span> KPIs</div>
+  <div class="nav-item"        data-view="pagos"        onclick="nav('pagos',this)"><span class="nav-icon">$</span> Pagos crew <span class="nav-chip amber" id="chip-payments" style="display:none">!</span></div>
+  <div class="nav-item"        data-view="embarcaciones" onclick="nav('embarcaciones',this)"><span class="nav-icon">⚓</span> Embarcaciones</div>
+  <div class="nav-divider"></div>
+  <div class="nav-section">Referencia</div>
+  <div class="nav-item"        data-view="resources"    onclick="nav('resources',this)"><span class="nav-icon">◁</span> Resources</div>
+  <div class="nav-item"        data-view="crew"         onclick="nav('crew',this)"><span class="nav-icon">◎</span> Crew</div>
+  <div class="nav-item"        data-view="items"        onclick="nav('items',this)"><span class="nav-icon">▣</span> Items</div>
+  <div class="nav-item"        data-view="errores"      onclick="nav('errores',this)"><span class="nav-icon">⚠</span> Errores</div>
+  <div class="nav-divider"></div>
+  <div class="conn-status" id="conn-status">
+    <div class="badge-dot" style="background:var(--text3)"></div>
+    Conectando...
+  </div>
 </div>
 
-<!-- MAIN -->
+<!-- ============================================================
+     MAIN
+     ============================================================ -->
 <div class="main" id="main">
   <div class="loading"><div class="spinner"></div>Cargando datos...</div>
 </div>
 
+</div><!-- .shell -->
+
+<!-- ============================================================
+     FORMS (overlays)
+     ============================================================ -->
+
+<!-- GAS BOAT FORM -->
+<div class="form-overlay" id="form-gas-boat">
+  <div class="form-box">
+    <div class="form-title">⛽ Gasolina — Barco <span class="form-close" onclick="closeForm('gas-boat')">×</span></div>
+    <div class="form-grid-2">
+      <div class="form-row"><label>Fecha</label><input type="date" id="gb-date"></div>
+      <div class="form-row"><label>Hora</label><input type="time" id="gb-time"></div>
+    </div>
+    <div class="form-row"><label>Embarcación</label><select id="gb-resource"><option value="">Seleccionar...</option></select></div>
+    <div class="form-grid-2">
+      <div class="form-row"><label>Bidones</label><input type="number" id="gb-bidones" min="1" max="20" placeholder="0"><div class="hint" id="gb-liters-hint">= 0 litros</div></div>
+      <div class="form-row"><label>Tour (opcional)</label><input type="text" id="gb-tour" placeholder="Availability PK"></div>
+    </div>
+    <div class="form-row"><label>Coordinador</label><select id="gb-coordinator"><option value="">Seleccionar...</option></select></div>
+    <div class="form-row"><label>Notas</label><textarea id="gb-notes" rows="2"></textarea></div>
+    <div class="form-msg" id="gb-msg"></div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeForm('gas-boat')">Cancelar</button>
+      <button class="btn btn-primary" onclick="submitGasBoat()">Guardar</button>
+    </div>
+  </div>
 </div>
+
+<!-- GAS STATION FORM -->
+<div class="form-overlay" id="form-gas-station">
+  <div class="form-box">
+    <div class="form-title">⛽ Gasolina — Estación <span class="form-close" onclick="closeForm('gas-station')">×</span></div>
+    <div class="form-grid-2">
+      <div class="form-row"><label>Fecha</label><input type="date" id="gs-date"></div>
+      <div class="form-row"><label>Bidones llenados</label><input type="number" id="gs-bidones" min="1" placeholder="0"></div>
+    </div>
+    <div class="form-grid-2">
+      <div class="form-row"><label>Costo total (MXN)</label><input type="number" id="gs-cost" placeholder="0.00"></div>
+      <div class="form-row"><label>Costo por bidón</label><input type="text" id="gs-per-bidon" readonly style="color:var(--teal)"></div>
+    </div>
+    <div class="form-row"><label>Coordinador</label><select id="gs-coordinator"><option value="">Seleccionar...</option></select></div>
+    <div class="form-row"><label>Notas</label><textarea id="gs-notes" rows="2"></textarea></div>
+    <div class="form-msg" id="gs-msg"></div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeForm('gas-station')">Cancelar</button>
+      <button class="btn btn-primary" onclick="submitGasStation()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAINTENANCE FORM -->
+<div class="form-overlay" id="form-maintenance">
+  <div class="form-box">
+    <div class="form-title">🔧 Mantenimiento <span class="form-close" onclick="closeForm('maintenance')">×</span></div>
+    <div class="form-grid-2">
+      <div class="form-row"><label>Fecha</label><input type="date" id="maint-date"></div>
+      <div class="form-row"><label>Costo (MXN)</label><input type="number" id="maint-cost" placeholder="0.00"></div>
+    </div>
+    <div class="form-row"><label>Embarcación / Resource</label><select id="maint-resource"><option value="">Seleccionar...</option></select></div>
+    <div class="form-grid-2">
+      <div class="form-row"><label>Categoría</label>
+        <select id="maint-category">
+          <option value="Motor">Motor</option><option value="Casco">Casco</option>
+          <option value="Velas/Aparejos">Velas/Aparejos</option><option value="Seguridad">Seguridad</option>
+          <option value="Eléctrico">Eléctrico</option><option value="General">General</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Status</label>
+        <select id="maint-status">
+          <option value="Completed">Completado</option>
+          <option value="In Progress">En progreso</option>
+          <option value="Pending">Pendiente</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row"><label>Descripción</label><textarea id="maint-desc" rows="3" placeholder="¿Qué se hizo?"></textarea></div>
+    <div class="form-row"><label>Coordinador</label><select id="maint-coordinator"><option value="">Seleccionar...</option></select></div>
+    <div class="form-row"><label>Notas</label><textarea id="maint-notes" rows="2"></textarea></div>
+    <div class="form-msg" id="maint-msg"></div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeForm('maintenance')">Cancelar</button>
+      <button class="btn btn-primary" onclick="submitMaintenance()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- DENIED TOUR FORM -->
+<div class="form-overlay" id="form-denied">
+  <div class="form-box">
+    <div class="form-title">✕ Servicio negado <span class="form-close" onclick="closeForm('denied')">×</span></div>
+    <div class="form-grid-2">
+      <div class="form-row"><label>Fecha</label><input type="date" id="den-date"></div>
+      <div class="form-row"><label>Ingreso estimado perdido (MXN)</label><input type="number" id="den-revenue" placeholder="0"></div>
+    </div>
+    <div class="form-row"><label>Tour solicitado</label><select id="den-tour"><option value="">Seleccionar...</option></select></div>
+    <div class="form-row"><label>Solicitado por (Affiliate)</label><input type="text" id="den-affiliate" placeholder="Hotel, agencia..."></div>
+    <div class="form-row"><label>Razón</label>
+      <select id="den-reason">
+        <option value="Sin crew disponible">Sin crew disponible</option>
+        <option value="Embarcación en mantenimiento">Embarcación en mantenimiento</option>
+        <option value="Clima">Clima</option>
+        <option value="Sin permiso">Sin permiso</option>
+        <option value="Otro">Otro</option>
+      </select>
+    </div>
+    <div class="form-row"><label>Coordinador</label><select id="den-coordinator"><option value="">Seleccionar...</option></select></div>
+    <div class="form-row"><label>Notas</label><textarea id="den-notes" rows="2"></textarea></div>
+    <div class="form-msg" id="den-msg"></div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeForm('denied')">Cancelar</button>
+      <button class="btn btn-primary" onclick="submitDenied()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- REVIEW FORM -->
+<div class="form-overlay" id="form-review">
+  <div class="form-box">
+    <div class="form-title">★ Registrar review <span class="form-close" onclick="closeForm('review')">×</span></div>
+    <div class="form-grid-2">
+      <div class="form-row"><label>Fecha del review</label><input type="date" id="rev-date"></div>
+      <div class="form-row"><label>Fecha del tour</label><input type="date" id="rev-tour-date"></div>
+    </div>
+    <div class="form-row"><label>Tour</label><select id="rev-tour"><option value="">Seleccionar...</option></select></div>
+    <div class="form-grid-2">
+      <div class="form-row"><label>Plataforma</label>
+        <select id="rev-platform">
+          <option value="Google">Google</option><option value="TripAdvisor">TripAdvisor</option>
+          <option value="Airbnb">Airbnb</option><option value="Booking">Booking</option>
+          <option value="Viator">Viator</option><option value="GetYourGuide">GetYourGuide</option>
+          <option value="Direct">Directo</option><option value="Other">Otro</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Estrellas</label>
+        <select id="rev-stars">
+          <option value="5">★★★★★ (5)</option><option value="4">★★★★☆ (4)</option>
+          <option value="3">★★★☆☆ (3)</option><option value="2">★★☆☆☆ (2)</option>
+          <option value="1">★☆☆☆☆ (1)</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row"><label>Crew mencionado</label><select id="rev-crew"><option value="">Ninguno</option></select></div>
+    <div class="form-row"><label>Link al review</label><input type="url" id="rev-link" placeholder="https://..."></div>
+    <div class="form-row"><label>Registrado por</label><select id="rev-logged-by"><option value="">Seleccionar...</option></select></div>
+    <div class="form-row"><label>Notas</label><textarea id="rev-notes" rows="2"></textarea></div>
+    <div class="form-msg" id="rev-msg"></div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeForm('review')">Cancelar</button>
+      <button class="btn btn-primary" onclick="submitReview()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- ============================================================
+     JAVASCRIPT
+     ============================================================ -->
 <script>
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzMJBV4E3wFIH_Nij3fpSw_5JBPI0rUCS52kquQLb6eaGGPOcbP3md6ZYENruIk4W_oCg/exec';
 
-// State
-let daily=[], kpi=[], bookings=[], resources=[], items=[], crew=[];
-let currentView='ops';
+// ---- STATE ----
+let D = {}; // all dashboard data
+let currentView = 'resumen';
 
-// ---- DATE HELPERS ----
-function fmtDate(val) {
-  if (!val) return '—';
-  let d;
-  if (typeof val === 'number') {
-    d = new Date((val - 25569) * 86400 * 1000);
-  } else {
-    d = new Date(val);
-  }
-  if (isNaN(d)) return String(val).substring(0,10);
-  const dd = String(d.getDate()).padStart(2,'0');
-  const mm = String(d.getMonth()+1).padStart(2,'0');
-  const yy = String(d.getFullYear()).slice(-2);
-  return `${dd}/${mm}/${yy}`;
-}
-
-function fmtTime(val) {
-  if (!val) return '—';
-  if (typeof val === 'string' && val.includes(':')) return val.substring(0,5);
-  return val;
-}
-
-function fmtMXN(val) {
-  const n = parseFloat(val) || 0;
-  return '$' + Math.round(n).toLocaleString('es-MX');
-}
-
-// ---- FETCH ALL DATA FROM APPS SCRIPT API ----
+// ---- LOAD ALL DATA ----
 async function loadAll() {
   document.getElementById('main').innerHTML = '<div class="loading"><div class="spinner"></div>Actualizando...</div>';
   try {
-    const url = SCRIPT_URL + '?action=data';
-    const r   = await fetch(url);
-    const d   = await r.json();
-
-    if (d.status !== 'ok') throw new Error(d.message);
-
-    bookings  = d.bookings  || [];
-    daily     = d.daily     || [];
-    kpi       = d.kpi       || [];
-    resources = d.resources || [];
-    items     = d.items     || [];
-    crew      = d.crew      || [];
-
-    document.getElementById('lastUpd').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',hour12:false});
-    document.getElementById('connStatus').innerHTML = '<span class="nav-icon" style="color:var(--teal)">●</span> Conectado';
-    updatePending();
+    const r = await fetch(SCRIPT_URL + '?action=data');
+    D = await r.json();
+    if (D.status !== 'ok') throw new Error(D.message);
+    document.getElementById('upd-time').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',hour12:false});
+    setConnected(true);
+    updateTopbar();
     render();
   } catch(e) {
-    console.error('Load error:', e);
     document.getElementById('main').innerHTML = '<div class="loading">Error cargando datos.<br><span style="font-size:10px;color:var(--text3)">'+e.message+'</span></div>';
-    document.getElementById('connStatus').innerHTML = '<span class="nav-icon" style="color:var(--red)">●</span> Error';
+    setConnected(false);
   }
 }
 
-// ---- EXTERNAL RESOURCES ----
-const EXTERNAL_RESOURCES = ['Ramona', 'Skybell', 'La Ramona'];
-
-// ---- TOUR CATEGORIES ----
-const TOUR_CATEGORIES = {
-  'Vela':   ['Sailing Tour','Private Catamaran','Private Monohull','Hobie Cat','Velero','Catamarán','Catamaran','Monocasco'],
-  'Motor':  ['Boat Tour','Private Boat Tour','Pontón','Ponton','Sunday FUNDAY','Ramona','Carmelita Private Boat','Healing','Mayan'],
-  'Paddle': ['Paddleboard','SUP','Kayak Tour','Sunrise Kayak','Sunset Kayak','Yoga'],
-  'Renta':  ['Rental','Renta'],
-};
-
-function getTourCategory(name) {
-  if (!name) return 'Otro';
-  const n = name.toLowerCase();
-  for (const [cat, keywords] of Object.entries(TOUR_CATEGORIES)) {
-    if (keywords.some(k => n.includes(k.toLowerCase()))) return cat;
-  }
-  return 'Otro';
+function setConnected(ok) {
+  const el = document.getElementById('conn-status');
+  el.innerHTML = ok
+    ? '<div class="badge-dot" style="background:var(--teal)"></div> Conectado'
+    : '<div class="badge-dot" style="background:var(--red)"></div> Error';
 }
 
-function isExternalResource(resName) {
-  return EXTERNAL_RESOURCES.some(e => (resName||'').toLowerCase().includes(e.toLowerCase()));
+// ---- API CALL ----
+async function apiCall(action, params) {
+  const url = SCRIPT_URL + '?action=' + action + '&' + new URLSearchParams(params).toString();
+  const r   = await fetch(url);
+  return await r.json();
 }
 
-// ---- ACTUAL PEOPLE COUNT from Raw JSON ----
-function getActualPeople(row) {
-  const actual = parseFloat(row['# People (actual)']);
-  if (actual && actual > 0) return actual;
-  const raw = row['Raw JSON'];
-  if (!raw) return parseFloat(row['# People (FH)']) || parseFloat(row['# People']) || 0;
-  try {
-    const booking = JSON.parse(raw).booking;
-    if (!booking || !booking.customers) return booking.customer_count || 0;
-    const peopleKeywords = ['personas','people','kayak','cuantas','how many','numero de'];
-    let total = 0;
-    booking.customers.forEach(function(c) {
-      let found = false;
-      if (c.custom_field_values) {
-        c.custom_field_values.forEach(function(cfv) {
-          const fname = (cfv.name || '').toLowerCase();
-          if (peopleKeywords.some(k => fname.includes(k)) && cfv.display_value && !isNaN(parseInt(cfv.display_value))) {
-            total += parseInt(cfv.display_value);
-            found = true;
-          }
-        });
-      }
-      if (!found) total += 1;
-    });
-    return total > 0 ? total : (booking.customer_count || 0);
-  } catch(e) {
-    return parseFloat(row['# People (FH)']) || parseFloat(row['# People']) || 0;
+// ---- TOPBAR BADGES ----
+function updateTopbar() {
+  const pending = (D.meta || {}).pending_days || 0;
+  const pendPay = (D.meta || {}).pending_payments || 0;
+
+  // Pending approvals badge
+  const pb   = document.getElementById('badge-pending');
+  const pTxt = document.getElementById('badge-pending-text');
+  const chip = document.getElementById('chip-pending');
+  pTxt.textContent = pending > 0 ? pending + (pending===1?' día pendiente':' días pendientes') : 'Todo aprobado';
+  pb.className = 'badge-alert ' + (pending > 0 ? 'red' : 'ok');
+  chip.textContent = pending;
+  chip.className = 'nav-chip' + (pending > 0 ? '' : ' ok');
+
+  // Payments badge
+  const payBadge = document.getElementById('badge-payments');
+  const payChip  = document.getElementById('chip-payments');
+  if (pendPay > 0) {
+    payBadge.style.display = 'flex';
+    document.getElementById('badge-payments-text').textContent = pendPay + ' pagos pendientes';
+    payChip.style.display = 'inline-block';
+  } else {
+    payBadge.style.display = 'none';
+    payChip.style.display = 'none';
   }
 }
 
-// ---- REVENUE ----
-function getRevenue(row) {
-  const rt = parseFloat(row['Receipt Total (MXN)']) || 0;
-  if (rt > 0) return rt;
-  return parseFloat(row['Invoice Price (MXN)']) || 0;
-}
-
-
-  const n = daily.filter(r=>r['Validation Status']==='Pending').length;
-  const b = document.getElementById('pendingBadge');
-  document.getElementById('pendingText').textContent = n>0 ? n+(n===1?' día pendiente':' días pendientes') : 'Todo aprobado';
-  b.className = n>0 ? 'pending-badge' : 'pending-badge ok';
-}
-
-// ---- APPROVE — calls Apps Script to update sheet ----
-async function approveDay(dateStr, btnEl) {
-  btnEl.disabled = true;
-  btnEl.textContent = '...';
-  try {
-    const url = SCRIPT_URL + '?action=approve&date=' + encodeURIComponent(dateStr);
-    const r   = await fetch(url);
-    const d   = await r.json();
-    if (d.status === 'ok') {
-      // Update local state
-      const row = daily.find(r => r['Date'] === dateStr);
-      if (row) row['Validation Status'] = 'Approved';
-      updatePending();
-      renderValidation();
-    } else {
-      btnEl.textContent = 'Error';
-      btnEl.disabled = false;
-      console.error('Approve error:', d.message);
-    }
-  } catch(e) {
-    btnEl.textContent = 'Error';
-    btnEl.disabled = false;
-    console.error('Approve fetch error:', e);
+// ---- NAVIGATION ----
+function nav(view, el) {
+  currentView = view;
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  if (el) el.classList.add('active');
+  else {
+    const target = document.querySelector('[data-view="'+view+'"]');
+    if (target) target.classList.add('active');
   }
-}
-
-// ---- VIEW CONTROL ----
-function setView(v,el) {
-  currentView=v;
-  document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
-  if(el) el.classList.add('active');
   render();
 }
 
 function render() {
-  if(currentView==='ops')        renderOps();
-  else if(currentView==='validation') renderValidation();
-  else if(currentView==='kpi')   renderKPI();
-  else if(currentView==='tours') renderTours();
-  else if(currentView==='bookings') renderBookings();
-  else if(currentView==='resources') renderResources();
-  else if(currentView==='crew')  renderCrew();
-  else if(currentView==='items') renderItems();
+  const views = {
+    resumen:       renderResumen,
+    validacion:    renderValidacion,
+    tours:         renderTours,
+    bookings:      renderBookings,
+    gasoline:      renderGasoline,
+    maintenance:   renderMaintenance,
+    denied:        renderDenied,
+    reviews:       renderReviews,
+    kpi:           renderKPI,
+    pagos:         renderPagos,
+    embarcaciones: renderEmbarcaciones,
+    resources:     renderResources,
+    crew:          renderCrew,
+    items:         renderItems,
+    errores:       renderErrores,
+  };
+  (views[currentView] || renderResumen)();
 }
 
-// ---- HELPERS ----
-function sumF(arr,fn){ return arr.reduce((s,r)=>s+(fn(r)||0),0); }
-function n(v){ return parseFloat(v)||0; }
-function pill(st){
-  if(!st) return '';
-  if(st==='booked'||st==='on'||st==='active'||st==='Approved') return `<span class="pill p-ok">${st}</span>`;
-  if(st==='cancelled'||st==='out_of_service'||st==='Issue') return `<span class="pill p-bad">${st}</span>`;
-  if(st==='Pending'||st==='leaving') return `<span class="pill p-pend">${st}</span>`;
-  return `<span class="pill p-off">${st}</span>`;
-}
-function kpiColor(val,target,inv){
-  if(val===''||val===null||val===undefined||isNaN(parseFloat(val))) return 'n';
-  val=parseFloat(val);
-  if(inv) return val<=target?'g':val<=target*1.5?'a':'r';
-  return val>=target?'g':val>=target*.85?'a':'r';
-}
-function kpiBadge(c){ return `<span class="badge b-${c}">${{g:'En meta',a:'Atención',r:'Bajo meta',n:'Sin datos'}[c]}</span>`; }
-function barRow(lbl,val,max,display){
-  const pct=max>0?Math.min(100,(val/max)*100):0;
-  return `<div class="bar-row"><div class="b-lbl">${lbl}</div><div class="b-track"><div class="b-fill" style="width:${pct}%"></div></div><div class="b-val">${display}</div></div>`;
-}
-function isExternalResource(resName) {
-  return EXTERNAL_RESOURCES.some(e => (resName||'').toLowerCase().includes(e.toLowerCase()));
+// ============================================================
+// HELPERS
+// ============================================================
+const n = v => parseFloat(v) || 0;
+const fmt = v => Math.round(n(v)).toLocaleString('es-MX');
+const fmtMXN = v => '$' + fmt(v);
+const fmtDate = v => { if (!v) return '—'; const p = String(v).substring(0,10).split('-'); return p.length===3?p[2]+'/'+p[1]+'/'+p[0].slice(-2):v; };
+const fmtTime = v => { if (!v) return '—'; return String(v).substring(0,5); };
+const sumF = (arr,k) => arr.reduce((s,r)=>s+n(r[k]),0);
+const today = () => new Date().toISOString().substring(0,10);
+const stars = n => '★'.repeat(n) + '☆'.repeat(5-n);
+
+function pill(st) {
+  const map = {
+    'booked':'p-ok','active':'p-ok','Approved':'p-ok','Vigente':'p-ok','Paid':'p-green',
+    'cancelled':'p-bad','Vencido':'p-bad','out_of_service':'p-bad','doc_expired':'p-bad',
+    'Pending':'p-pend','Por vencer':'p-pend','Pending Review':'p-pend','In Progress':'p-pend',
+    'rebooked':'p-orange',
+  };
+  return `<span class="pill ${map[st]||'p-off'}">${st||'—'}</span>`;
 }
 
-// ---- OPS VIEW ----
-function renderOps() {
+function cat(tourName) {
+  if (!tourName) return 'Otro';
+  const n = tourName.toLowerCase();
+  if (['sailing','catamaran','monohull','hobie','velero','catamar','monocasco'].some(k=>n.includes(k))) return 'Vela';
+  if (['boat','ponton','sunday funday','ramona','healing','mayan','carmelita private'].some(k=>n.includes(k))) return 'Motor';
+  if (['paddleboard','sup','kayak tour','sunrise kayak','sunset kayak','yoga'].some(k=>n.includes(k))) return 'Paddle';
+  if (['rental','renta'].some(k=>n.includes(k))) return 'Renta';
+  return 'Otro';
+}
+
+function barRow(lbl, val, max, display) {
+  const pct = max > 0 ? Math.min(100,(val/max)*100) : 0;
+  return `<div class="bar-row"><div class="br-lbl">${lbl}</div><div class="br-track"><div class="br-fill" style="width:${pct}%"></div></div><div class="br-val">${display}</div></div>`;
+}
+
+function kpiColor(val, target, inv) {
+  if (val===''||val===null||val===undefined||isNaN(parseFloat(val))) return 'n';
+  val = parseFloat(val);
+  if (inv) return val<=target?'g':val<=target*1.5?'a':'r';
+  return val>=target?'g':val>=target*0.85?'a':'r';
+}
+
+function kpiBadge(c) { return `<span class="k-badge b-${c}">${{g:'En meta',a:'Atención',r:'Bajo meta',n:'Sin datos'}[c]}</span>`; }
+
+// ============================================================
+// VIEW: RESUMEN
+// ============================================================
+function renderResumen() {
+  const tours   = D.tours   || [];
+  const daily   = D.daily   || [];
+  const kpi     = D.kpi     || [];
   const approved = daily.filter(r=>r['Validation Status']==='Approved');
-  const last7 = approved.slice(-7);
-  const booked = bookings.filter(b=>b['Status']==='booked');
+  const last7    = approved.slice(-7);
 
-  const totalTours   = sumF(last7, r=>n(r['Total Tours']));
-  const totalPeople  = sumF(last7, r=>n(r['Total People']));
-  const totalRevenue = sumF(last7, r=>n(r['Revenue (MXN net)']));
-
-  // Marina breakdown
-  const marinaList = [...new Set(resources.map(r=>r['marina — operating location']).filter(Boolean))];
-  const marinaTours={}, marinaRevs={};
-  marinaList.forEach(m=>{
-    marinaTours[m] = sumF(last7, r=>n(r[m+' Tours'])) || booked.filter(b=>b['Marina']===m).length;
-    marinaRevs[m]  = sumF(last7, r=>n(r[m+' Revenue'])) || sumF(booked.filter(b=>b['Marina']===m), getRevenue);
-  });
-  const maxT=Math.max(...Object.values(marinaTours),1);
-  const maxR=Math.max(...Object.values(marinaRevs),1);
+  const totalTours   = sumF(last7,'Total Tours');
+  const totalPax     = sumF(last7,'Total Pax');
+  const totalRevenue = sumF(last7,'Revenue (MXN)');
+  const lk = kpi.length > 0 ? kpi[kpi.length-1] : {};
+  const kpiScore = lk['Total KPI Score'];
 
   // Category breakdown
-  const catCounts={};
-  booked.slice(-100).forEach(b=>{
-    const cat=getTourCategory(b['Tour Name']);
-    catCounts[cat]=(catCounts[cat]||0)+1;
+  const cats = {};
+  tours.slice(-100).forEach(t => { const c=cat(t['Tour Name']||''); cats[c]=(cats[c]||0)+1; });
+  const maxCat = Math.max(...Object.values(cats),1);
+
+  // Marina breakdown
+  const marinas = ['The Yak','Carmelita','Habitas'];
+  const mTours={}, mRevs={};
+  marinas.forEach(m=>{
+    mTours[m] = sumF(last7, m==='The Yak'?'Yak Tours':m+' Tours');
+    mRevs[m]  = sumF(last7, m==='The Yak'?'Yak Revenue':m+' Revenue');
   });
-  const maxCat=Math.max(...Object.values(catCounts),1);
+  const maxMT = Math.max(...Object.values(mTours),1);
+  const maxMR = Math.max(...Object.values(mRevs),1);
 
   // KPI
-  const lk=kpi.length>0?kpi[kpi.length-1]:{};
-  const kpiScore=lk['Total KPI Score'];
-  const pendingD=n(lk['Days Pending']);
-  const costR=lk['Cost Ratio %'], denyP=lk['Deny Service %'];
-  const uptime=lk['Uptime %'], checkL=lk['Checklist %'];
-  const revCov=lk['Reviews Coverage %'], fiveStar=lk['5-Star %'];
-
-  const costC=kpiColor(costR,33,true), denyC=kpiColor(denyP,2,true);
-  const upC=kpiColor(uptime,95,false), checkC=kpiColor(checkL,90,false);
-  const revC=kpiColor(revCov,100,false);
-
-  // External resource usage
-  const extResources = resources.filter(r=>isExternalResource(r['name — resource name']));
+  const costR=lk['Cost Ratio %'], denyP=lk['Deny Service %'], uptime=lk['Uptime %'];
+  const checkL=lk['Checklist %'], revCov=lk['Reviews Coverage %'], fiveStar=lk['5-Star %'];
+  const cc=kpiColor, cb=kpiBadge;
+  const costC=cc(costR,33,true), denyC=cc(denyP,2,true), upC=cc(uptime,95,false);
+  const checkC=cc(checkL,90,false), revC=cc(revCov,100,false);
 
   document.getElementById('main').innerHTML = `
-    <div class="s-hdr">
-      <div class="s-title">Resumen Operacional</div>
-      <div class="s-sub">Últimos 7 días aprobados</div>
+    <div class="page-hdr fade-up">
+      <div class="page-title">Resumen Operacional</div>
+      <div class="page-sub">Últimos 7 días aprobados</div>
     </div>
 
-    <div class="metrics">
-      <div class="m-card">
-        <div class="m-lbl">Tours</div>
-        <div class="m-val">${totalTours}</div>
-        <div class="m-sub">avg ${totalTours>0?Math.round(totalPeople/totalTours*10)/10:0} personas</div>
-      </div>
-      <div class="m-card">
-        <div class="m-lbl">Personas operadas</div>
-        <div class="m-val">${totalPeople}</div>
-        <div class="m-sub">días aprobados</div>
-      </div>
-      <div class="m-card">
-        <div class="m-lbl">Ingresos</div>
-        <div class="m-val">${fmtMXN(totalRevenue)}</div>
-        <div class="m-sub">MXN · receipt total</div>
-      </div>
-      <div class="m-card">
+    <div class="metrics metrics-4">
+      <div class="m-card"><div class="m-lbl">Tours</div><div class="m-val">${totalTours}</div><div class="m-sub">avg ${totalTours>0?Math.round(totalPax/totalTours*10)/10:0} pax</div></div>
+      <div class="m-card"><div class="m-lbl">Pax operados</div><div class="m-val">${totalPax}</div><div class="m-sub">${approved.length} días aprobados</div></div>
+      <div class="m-card"><div class="m-lbl">Ingresos</div><div class="m-val">${fmtMXN(totalRevenue)}</div><div class="m-sub">MXN · receipt total</div></div>
+      <div class="m-card${typeof kpiScore==='number'&&kpiScore>=85?' accent-green':typeof kpiScore==='number'&&kpiScore<70?' accent-red':''}">
         <div class="m-lbl">KPI semanal</div>
-        <div class="m-val" style="color:${typeof kpiScore==='number'?(kpiScore>=85?'var(--teal)':kpiScore>=70?'var(--amber)':'var(--red)'):'var(--text3)'}">${typeof kpiScore==='number'?kpiScore+'%':kpiScore||'—'}</div>
-        <div class="m-sub">${pendingD>0?pendingD+' días pendientes':'al día'}</div>
+        <div class="m-val" style="color:${typeof kpiScore==='number'?(kpiScore>=85?'var(--green)':kpiScore>=70?'var(--amber)':'var(--red)'):'var(--text3)'}">${typeof kpiScore==='number'?kpiScore+'%':kpiScore||'—'}</div>
+        <div class="m-sub">${(D.meta||{}).pending_days||0} días pendientes</div>
       </div>
     </div>
 
-    <div class="s-hdr">
-      <div class="s-title">KPIs Coordinadores · Bono 2% venta neta</div>
-    </div>
-
+    <div class="page-hdr" style="margin-top:4px"><div class="page-title">KPIs — Bono 2% venta neta</div></div>
     <div class="kpis">
-      <div class="k-card c-${costC}" onclick="toggleDetail('cost')">
+      <div class="k-card c-${costC}" onclick="nav('kpi')">
         <div class="k-top"><div class="k-name">Costos</div><div class="k-wt">40%</div></div>
-        ${kpiBadge(costC)}<div class="k-val ${costC}">${costR!==''&&costR!==null?costR+'%':'—'}</div>
-        <div class="k-bar"><div class="k-fill f-${costC}" style="width:${costR!==''?Math.min(100,(33/Math.max(parseFloat(costR)||.1,.1))*100):0}%"></div></div>
-        <div class="k-meta">costo/ingreso · meta ≤33%</div>
+        ${cb(costC)}<div class="k-val v-${costC}">${costR!==''&&costR!==null?costR+'%':'—'}</div>
+        <div class="k-bar"><div class="k-fill f-${costC}" style="width:${costR!==''?Math.min(100,(33/Math.max(n(costR),.1))*100):0}%"></div></div>
+        <div class="k-meta">meta ≤33%</div>
       </div>
-      <div class="k-card c-${denyC}" onclick="toggleDetail('deny')">
+      <div class="k-card c-${denyC}" onclick="nav('denied')">
         <div class="k-top"><div class="k-name">Negaciones</div><div class="k-wt">10%</div></div>
-        ${kpiBadge(denyC)}<div class="k-val ${denyC}">${denyP!==''&&denyP!==null?denyP+'%':'—'}</div>
-        <div class="k-bar"><div class="k-fill f-${denyC}" style="width:${denyP!==''?Math.min(100,(2/Math.max(parseFloat(denyP)||.1,.1))*100):0}%"></div></div>
-        <div class="k-meta">oportunidad perdida · ≤2%</div>
+        ${cb(denyC)}<div class="k-val v-${denyC}">${denyP!==''&&denyP!==null?denyP+'%':'—'}</div>
+        <div class="k-bar"><div class="k-fill f-${denyC}" style="width:${denyP!==''?Math.min(100,(2/Math.max(n(denyP),.1))*100):0}%"></div></div>
+        <div class="k-meta">meta ≤2%</div>
       </div>
-      <div class="k-card c-${upC}" onclick="toggleDetail('uptime')">
+      <div class="k-card c-${upC}" onclick="nav('embarcaciones')">
         <div class="k-top"><div class="k-name">Disponibilidad</div><div class="k-wt">10%</div></div>
-        ${kpiBadge(upC)}<div class="k-val ${upC}">${uptime!==''&&uptime!==null?uptime+'%':'—'}</div>
-        <div class="k-bar"><div class="k-fill f-${upC}" style="width:${uptime||0}%"></div></div>
-        <div class="k-meta">resources · ≥95%</div>
+        ${cb(upC)}<div class="k-val v-${upC}">${uptime!==''&&uptime!==null?uptime+'%':'—'}</div>
+        <div class="k-bar"><div class="k-fill f-${upC}" style="width:${n(uptime)}%"></div></div>
+        <div class="k-meta">meta ≥95%</div>
       </div>
-      <div class="k-card c-${checkC}" onclick="toggleDetail('audit')">
+      <div class="k-card c-${checkC}" onclick="nav('kpi')">
         <div class="k-top"><div class="k-name">Auditoría</div><div class="k-wt">20%</div></div>
-        ${kpiBadge(checkC)}<div class="k-val ${checkC}">${checkL!==''&&checkL!==null?checkL+'%':'—'}</div>
-        <div class="k-bar"><div class="k-fill f-${checkC}" style="width:${checkL||0}%"></div></div>
-        <div class="k-meta">checklists · ≥90%</div>
+        ${cb(checkC)}<div class="k-val v-${checkC}">${checkL!==''&&checkL!==null?checkL+'%':'—'}</div>
+        <div class="k-bar"><div class="k-fill f-${checkC}" style="width:${n(checkL)}%"></div></div>
+        <div class="k-meta">meta ≥90%</div>
       </div>
-      <div class="k-card c-${revC}" onclick="toggleDetail('reviews')">
+      <div class="k-card c-${revC}" onclick="nav('reviews')">
         <div class="k-top"><div class="k-name">Reviews</div><div class="k-wt">20%</div></div>
-        ${kpiBadge(revC)}<div class="k-val ${revC}">${revCov!==''&&revCov!==null?revCov+'%':'—'}</div>
-        <div class="k-bar"><div class="k-fill f-${revC}" style="width:${revCov||0}%"></div></div>
-        <div class="k-meta">cobertura · 5★ ${fiveStar!==''&&fiveStar!==null?fiveStar+'%':'—'}</div>
+        ${cb(revC)}<div class="k-val v-${revC}">${revCov!==''&&revCov!==null?revCov+'%':'—'}</div>
+        <div class="k-bar"><div class="k-fill f-${revC}" style="width:${n(revCov)}%"></div></div>
+        <div class="k-meta">5★ ${fiveStar!==''&&fiveStar!==null?fiveStar+'%':'—'}</div>
       </div>
     </div>
 
-    <!-- DETAIL PANELS -->
-    <div class="detail" id="detail-cost">
-      <div class="d-hdr"><div class="d-title">Control de costos</div><button class="close-btn" onclick="closeDetail()">cerrar ✕</button></div>
-      <div class="d-cols">
-        <div>
-          <div class="sub-t">Esta semana</div>
-          <div class="d-row"><span class="d-k">Ratio costo/ingreso</span><span class="d-v ${costC}">${costR!==''?costR+'%':'Sin datos'}</span></div>
-          <div class="d-row"><span class="d-k">Meta</span><span class="d-v">≤33%</span></div>
-          <div class="d-row"><span class="d-k">Tours aprobados</span><span class="d-v">${lk['Tours (approved)']||'—'}</span></div>
-          <div class="d-row"><span class="d-k">Ingresos semana</span><span class="d-v">${fmtMXN(n(lk['Revenue (MXN)']))}</span></div>
-        </div>
-        <div>
-          <div class="sub-t">Resources externos (no en KPI)</div>
-          ${extResources.map(r=>`<div class="d-row"><span class="d-k">${r['name — resource name']}</span><span class="d-v" style="color:var(--orange)">● Externo — costo separado</span></div>`).join('')||'<div class="d-row"><span class="d-k">—</span><span class="d-v">Sin resources externos activos</span></div>'}
-        </div>
-      </div>
-    </div>
-
-    <div class="detail" id="detail-deny">
-      <div class="d-hdr"><div class="d-title">Servicio negado</div><button class="close-btn" onclick="closeDetail()">cerrar ✕</button></div>
-      <div class="d-cols">
-        <div>
-          <div class="sub-t">Esta semana</div>
-          <div class="d-row"><span class="d-k">% ingresos perdidos</span><span class="d-v ${denyC}">${denyP!==''?denyP+'%':'Sin datos'}</span></div>
-          <div class="d-row"><span class="d-k">Meta</span><span class="d-v">≤2%</span></div>
-          <div class="d-row"><span class="d-k">Baseline histórico</span><span class="d-v">2.7%</span></div>
-        </div>
-        <div>
-          <div class="sub-t">Causas comunes</div>
-          <div class="d-row"><span class="d-k">Sin crew disponible</span><span class="d-v r">Más frecuente</span></div>
-          <div class="d-row"><span class="d-k">Resource en mantenimiento</span><span class="d-v">—</span></div>
-          <div class="d-row"><span class="d-k">Distancia Habitas</span><span class="d-v a">2 slots perdidos/tour</span></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="detail" id="detail-uptime">
-      <div class="d-hdr"><div class="d-title">Disponibilidad de resources</div><button class="close-btn" onclick="closeDetail()">cerrar ✕</button></div>
-      <div class="d-cols">
-        <div>
-          <div class="sub-t">Estado</div>
-          <div class="d-row"><span class="d-k">Resources activos</span><span class="d-v g">${resources.filter(r=>r['status — active or out_of_service']==='active').length} de ${resources.length}</span></div>
-          <div class="d-row"><span class="d-k">Uptime</span><span class="d-v ${upC}">${uptime!==''?uptime+'%':'Sin datos'}</span></div>
-          <div class="d-row"><span class="d-k">Meta</span><span class="d-v">≥95%</span></div>
-        </div>
-        <div>
-          <div class="sub-t">Fuera de servicio</div>
-          ${resources.filter(r=>r['status — active or out_of_service']==='out_of_service').map(r=>`<div class="d-row"><span class="d-k">${r['name — resource name']}</span><span class="d-v r">● Fuera servicio</span></div>`).join('')||'<div class="d-row"><span class="d-k">Todo operativo</span><span class="d-v g">✓</span></div>'}
-        </div>
-      </div>
-    </div>
-
-    <div class="detail" id="detail-audit">
-      <div class="d-hdr"><div class="d-title">Auditoría y orden</div><button class="close-btn" onclick="closeDetail()">cerrar ✕</button></div>
-      <div class="d-cols">
-        <div>
-          <div class="sub-t">Checklists</div>
-          <div class="d-row"><span class="d-k">Completados</span><span class="d-v ${checkC}">${checkL!==''?checkL+'%':'Sin datos'}</span></div>
-          <div class="d-row"><span class="d-k">Meta</span><span class="d-v">≥90%</span></div>
-        </div>
-        <div>
-          <div class="sub-t">Crew activo</div>
-          <div class="d-row"><span class="d-k">Total activos</span><span class="d-v g">${crew.filter(c=>c['status — active, leaving, or inactive']==='active').length}</span></div>
-          <div class="d-row"><span class="d-k">Capitanes</span><span class="d-v">${crew.filter(c=>c['role — crew role in FareHarbor']==='Capitan'&&c['status — active, leaving, or inactive']==='active').length}</span></div>
-          <div class="d-row"><span class="d-k">Guías</span><span class="d-v">${crew.filter(c=>c['role — crew role in FareHarbor']==='Guia'&&c['status — active, leaving, or inactive']==='active').length}</span></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="detail" id="detail-reviews">
-      <div class="d-hdr"><div class="d-title">Satisfacción del cliente</div><button class="close-btn" onclick="closeDetail()">cerrar ✕</button></div>
-      <div class="d-cols">
-        <div>
-          <div class="sub-t">Reviews (bookings directos)</div>
-          <div class="d-row"><span class="d-k">Cobertura</span><span class="d-v ${revC}">${revCov!==''?revCov+'%':'Sin datos'}</span></div>
-          <div class="d-row"><span class="d-k">Meta</span><span class="d-v">100% bookings</span></div>
-          <div class="d-row"><span class="d-k">5 estrellas</span><span class="d-v">${fiveStar!==''?fiveStar+'%':'—'}</span></div>
-        </div>
-        <div>
-          <div class="sub-t">Incentivos</div>
-          <div class="d-row"><span class="d-k">Bono crew con nombre</span><span class="d-v g">$50 MXN</span></div>
-          <div class="d-row"><span class="d-k">Bookings hotel</span><span class="d-v">Seguimiento separado</span></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- BOTTOM PANELS -->
-    <div class="bot-grid">
+    <div class="grid-3">
       <div class="panel">
-        <div class="p-title">Tours por marina — 7 días</div>
-        ${marinaList.map(m=>barRow(m,marinaTours[m]||0,maxT,(marinaTours[m]||0)+' tours')).join('')||'<div class="empty">Sin datos aprobados</div>'}
+        <div class="panel-title">Tours por marina — 7 días</div>
+        ${marinas.map(m=>barRow(m,mTours[m]||0,maxMT,(mTours[m]||0)+' tours')).join('')}
       </div>
       <div class="panel">
-        <div class="p-title">Ingresos por marina</div>
-        ${marinaList.map(m=>barRow(m,marinaRevs[m]||0,maxR,fmtMXN(marinaRevs[m]||0))).join('')||'<div class="empty">Sin datos aprobados</div>'}
+        <div class="panel-title">Ingresos por marina</div>
+        ${marinas.map(m=>barRow(m,mRevs[m]||0,maxMR,fmtMXN(mRevs[m]||0))).join('')}
       </div>
       <div class="panel">
-        <div class="p-title">Categorías — últimos 100 bookings</div>
-        ${Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=>barRow(k,v,maxCat,v+' tours')).join('')||'<div class="empty">Sin datos</div>'}
+        <div class="panel-title">Categorías — últimos 100 tours</div>
+        ${Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([k,v])=>barRow(k,v,maxCat,v+' tours')).join('')||'<div class="empty">Sin datos</div>'}
       </div>
     </div>
-  `;
+
+    <div class="tbl-wrap">
+      <div class="tbl-hdr"><div class="page-title">Tours recientes</div><div class="page-sub">${tours.length} tours total</div></div>
+      <div class="tbl-scroll"><table>
+        <thead><tr><th>Fecha</th><th>Hora</th><th>Tour</th><th>Cat.</th><th>Pax</th><th>Ingresos</th><th>Marina</th><th>Crew</th><th>Duration</th></tr></thead>
+        <tbody>${[...tours].reverse().slice(0,8).map(t=>`<tr>
+          <td class="td-white td-nowrap">${fmtDate(t['Tour Date'])}</td>
+          <td>${fmtTime(t['Tour Time'])}</td>
+          <td class="td-trunc td-white">${t['Tour Name']||'—'}</td>
+          <td><span class="cat-tag">${cat(t['Tour Name'])}</span></td>
+          <td class="td-teal">${t['Total Pax']||0}</td>
+          <td class="td-teal">${fmtMXN(t['Total Revenue (MXN)']||0)}</td>
+          <td>${t['Marina']||'—'}</td>
+          <td class="td-muted td-trunc">${t['Crew']||'—'}</td>
+          <td>${t['Duration (hrs)']||'—'}${t['Duration (hrs)']?'h':''}</td>
+        </tr>`).join('')||'<tr><td colspan="9" class="empty">Sin tours</td></tr>'}
+        </tbody>
+      </table></div>
+    </div>`;
 }
 
-// ---- VALIDATION VIEW — approve pending days ----
-function renderValidation() {
-  const pending  = daily.filter(r=>r['Validation Status']==='Pending').reverse();
-  const approved = daily.filter(r=>r['Validation Status']==='Approved').reverse().slice(0,7);
+// ============================================================
+// VIEW: VALIDACION
+// ============================================================
+function renderValidacion() {
+  const daily   = D.daily || [];
+  const pending  = [...daily].filter(r=>r['Validation Status']==='Pending').reverse();
+  const approved = [...daily].filter(r=>r['Validation Status']==='Approved').reverse().slice(0,10);
 
   document.getElementById('main').innerHTML = `
-    <div class="s-hdr">
-      <div class="s-title">Validación diaria</div>
-      <div class="s-sub">Revisa FareHarbor → aprueba el día → KPI se actualiza</div>
+    <div class="page-hdr fade-up">
+      <div class="page-title">Validación diaria</div>
+      <div class="page-sub">Revisa FareHarbor → verifica los datos → aprueba</div>
     </div>
 
-    ${pending.length>0?`
-    <div class="tbl-wrap" style="border-color:rgba(240,180,41,.3)">
+    ${pending.length > 0 ? `
+    <div class="tbl-wrap" style="border-color:rgba(240,180,41,.35)">
       <div class="tbl-hdr" style="border-color:rgba(240,180,41,.2)">
-        <div class="s-title" style="color:var(--amber)">${pending.length} DÍA${pending.length>1?'S':''} PENDIENTE${pending.length>1?'S':''}</div>
-        <div class="s-sub">Verifica los datos en FareHarbor antes de aprobar</div>
+        <div class="page-title" style="color:var(--amber)">${pending.length} DÍA${pending.length>1?'S':''} PENDIENTE${pending.length>1?'S':''}</div>
+        <div class="page-sub">Verifica los datos en FareHarbor antes de aprobar</div>
       </div>
-      <table>
-        <thead><tr><th>Fecha</th><th>Tours</th><th>Personas</th><th>Ingresos</th><th>The Yak</th><th>Carmelita</th><th>Habitas</th><th>Notas</th><th>Acción</th></tr></thead>
-        <tbody>
-          ${pending.map(r=>`<tr>
-            <td style="color:var(--white);font-weight:600">${fmtDate(r['Date'])}</td>
-            <td>${r['Total Tours']||0}</td>
-            <td>${r['Total People']||0}</td>
-            <td style="color:var(--teal);font-weight:600">${fmtMXN(n(r['Revenue (MXN net)']))}</td>
-            <td>${r['Yak Tours']||0}</td>
-            <td>${r['Carmelita Tours']||0}</td>
-            <td>${r['Habitas Tours']||0}</td>
-            <td style="color:var(--text3)">${r['Coordinator Notes']||'—'}</td>
-            <td><button class="approve-btn" onclick="approveDay('${r['Date']}',this)">Aprobar ✓</button></td>
-          </tr>`).join('')}
+      <div class="tbl-scroll"><table>
+        <thead><tr><th>Fecha</th><th>Tours</th><th>Pax</th><th>Ingresos</th><th>Yak</th><th>Carmelita</th><th>Habitas</th><th>Hotel</th><th>Directo</th><th>Notas</th><th>Acción</th></tr></thead>
+        <tbody>${pending.map(r=>`<tr>
+          <td class="td-white td-nowrap"><strong>${fmtDate(r['Date'])}</strong></td>
+          <td>${r['Total Tours']||0}</td>
+          <td class="td-teal">${r['Total Pax']||0}</td>
+          <td class="td-teal">${fmtMXN(r['Revenue (MXN)']||0)}</td>
+          <td>${r['Yak Tours']||0}</td><td>${r['Carmelita Tours']||0}</td><td>${r['Habitas Tours']||0}</td>
+          <td>${r['Hotel Tours']||0}</td><td>${r['Direct Tours']||0}</td>
+          <td class="td-muted">${r['Notes']||'—'}</td>
+          <td><button class="btn-approve" onclick="approveDay('${r['Date']}',this)">Aprobar ✓</button></td>
+        </tr>`).join('')}
         </tbody>
-      </table>
-    </div>`:`
-    <div style="padding:20px;background:var(--dark2);border:1px solid var(--border);border-radius:5px;margin-bottom:16px;text-align:center;">
-      <div style="color:var(--teal);font-size:24px;margin-bottom:8px">✓</div>
+      </table></div>
+    </div>` : `
+    <div style="text-align:center;padding:24px;background:var(--dark2);border:1px solid var(--border);border-radius:5px;margin-bottom:14px">
+      <div style="color:var(--teal);font-size:28px;margin-bottom:8px">✓</div>
       <div style="color:var(--teal);font-weight:600">Todo aprobado</div>
-      <div style="color:var(--text3);font-size:11px;margin-top:4px">No hay días pendientes de validación</div>
+      <div class="td-muted" style="margin-top:4px;font-size:10px">No hay días pendientes</div>
     </div>`}
 
-    <div class="s-hdr" style="margin-top:8px">
-      <div class="s-title">Últimos días aprobados</div>
-    </div>
-    <div class="tbl-wrap">
-      <table>
-        <thead><tr><th>Fecha</th><th>Status</th><th>Tours</th><th>Personas</th><th>Ingresos</th><th>Yak</th><th>Carmelita</th><th>Habitas</th></tr></thead>
-        <tbody>
-          ${approved.map(r=>`<tr>
-            <td style="color:var(--white)">${fmtDate(r['Date'])}</td>
-            <td>${pill(r['Validation Status'])}</td>
-            <td>${r['Total Tours']||0}</td>
-            <td>${r['Total People']||0}</td>
-            <td style="color:var(--teal);font-weight:600">${fmtMXN(n(r['Revenue (MXN net)']))}</td>
-            <td>${r['Yak Tours']||0}</td>
-            <td>${r['Carmelita Tours']||0}</td>
-            <td>${r['Habitas Tours']||0}</td>
-          </tr>`).join('')||'<tr><td colspan="8" class="empty">Sin días aprobados aún</td></tr>'}
-        </tbody>
-      </table>
-    </div>
-  `;
+    <div class="page-hdr"><div class="page-title">Últimos días aprobados</div></div>
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <thead><tr><th>Fecha</th><th>Status</th><th>Tours</th><th>Pax</th><th>Ingresos</th><th>Yak</th><th>Carmelita</th><th>Habitas</th><th>Ext. Resource</th></tr></thead>
+      <tbody>${approved.map(r=>`<tr>
+        <td class="td-white td-nowrap">${fmtDate(r['Date'])}</td>
+        <td>${pill(r['Validation Status'])}</td>
+        <td>${r['Total Tours']||0}</td>
+        <td class="td-teal">${r['Total Pax']||0}</td>
+        <td class="td-teal">${fmtMXN(r['Revenue (MXN)']||0)}</td>
+        <td>${r['Yak Tours']||0}</td><td>${r['Carmelita Tours']||0}</td><td>${r['Habitas Tours']||0}</td>
+        <td>${r['External Tours']||0}</td>
+      </tr>`).join('')||'<tr><td colspan="9" class="empty">Sin días aprobados</td></tr>'}
+      </tbody>
+    </table></div></div>`;
 }
 
-// ---- TOURS VIEW — grouped by availability pk ----
+async function approveDay(dateStr, btn) {
+  btn.disabled = true; btn.textContent = '...';
+  try {
+    const r = await apiCall('approve', { date: dateStr });
+    if (r.status === 'ok') {
+      const row = (D.daily||[]).find(x=>x['Date']===dateStr);
+      if (row) row['Validation Status'] = 'Approved';
+      D.meta = D.meta || {};
+      D.meta.pending_days = Math.max(0,(D.meta.pending_days||1)-1);
+      updateTopbar();
+      showToast('Día aprobado: '+fmtDate(dateStr), 'ok');
+      renderValidacion();
+    } else {
+      showToast('Error: '+r.message, 'err');
+      btn.disabled = false; btn.textContent = 'Aprobar ✓';
+    }
+  } catch(e) {
+    showToast('Error de conexión', 'err');
+    btn.disabled = false; btn.textContent = 'Aprobar ✓';
+  }
+}
+
+// ============================================================
+// VIEW: TOURS
+// ============================================================
 function renderTours() {
-  const booked = bookings.filter(b=>b['Status']==='booked');
-
-  // Group by availability pk
-  const availMap = {};
-  booked.forEach(b=>{
-    const apk = b['availability > pk'] || b['Tour ID (PK)'] || b['Booking ID'];
-    const key = (b['Tour Date']||'') + '_' + apk;
-    if (!availMap[key]) {
-      availMap[key] = {
-        availPk: apk,
-        tourName: b['Tour Name'] || '—',
-        date: b['Tour Date'] || '',
-        time: b['Tour Time'] || '',
-        marina: b['Marina'] || '—',
-        affiliate: b['Affiliate'] || 'Direct',
-        bookings: [],
-        totalPeople: 0,
-        totalRevenue: 0,
-        crew: '',
-      };
-    }
-    availMap[key].bookings.push(b);
-    availMap[key].totalPeople += getActualPeople(b);
-    availMap[key].totalRevenue += getRevenue(b);
-
-    // Extract crew from raw JSON
-    if (!availMap[key].crew && b['Raw JSON']) {
-      try {
-        const bk = JSON.parse(b['Raw JSON']).booking;
-        if (bk && bk.availability && bk.availability.crew_members && bk.availability.crew_members.length>0) {
-          availMap[key].crew = bk.availability.crew_members.map(c=>
-            c.user.name + (c.role?` (${c.role.short_name})`:'')
-          ).join(' · ');
-        }
-      } catch(e){}
-    }
-  });
-
-  const tours = Object.values(availMap).sort((a,b)=>{
-    if(b.date!==a.date) return b.date.localeCompare(a.date);
-    return (b.time||'').localeCompare(a.time||'');
-  });
-
-  const totalTours = tours.length;
-  const totalPeople = tours.reduce((s,t)=>s+t.totalPeople,0);
-  const totalRevenue = tours.reduce((s,t)=>s+t.totalRevenue,0);
+  const tours = D.tours || [];
+  const totalPax = sumF(tours,'Total Pax');
+  const totalRev = sumF(tours,'Total Revenue (MXN)');
 
   document.getElementById('main').innerHTML = `
-    <div class="s-hdr">
-      <div class="s-title">Tours — por availability</div>
-      <div class="s-sub">${totalTours} tours · ${totalPeople} personas · ${fmtMXN(totalRevenue)}</div>
+    <div class="page-hdr fade-up">
+      <div class="page-title">Tours — por availability</div>
+      <div class="page-sub">${tours.length} tours · ${totalPax} pax · ${fmtMXN(totalRev)}</div>
     </div>
-    <div class="metrics" style="grid-template-columns:repeat(3,1fr)">
-      <div class="m-card"><div class="m-lbl">Tours operados</div><div class="m-val">${totalTours}</div></div>
-      <div class="m-card"><div class="m-lbl">Personas operadas</div><div class="m-val">${totalPeople}</div></div>
-      <div class="m-card"><div class="m-lbl">Ingresos totales</div><div class="m-val">${fmtMXN(totalRevenue)}</div></div>
+    <div class="metrics metrics-3" style="margin-bottom:14px">
+      <div class="m-card"><div class="m-lbl">Tours total</div><div class="m-val">${tours.length}</div></div>
+      <div class="m-card"><div class="m-lbl">Pax total</div><div class="m-val">${totalPax}</div></div>
+      <div class="m-card"><div class="m-lbl">Ingresos total</div><div class="m-val">${fmtMXN(totalRev)}</div></div>
     </div>
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <thead><tr><th>Fecha</th><th>Hora</th><th>Tour</th><th>Cat.</th><th>Dur.</th><th>Pax</th><th>Ingresos</th><th>Marina</th><th>Resources</th><th>Crew</th><th>Bookings</th><th>Flag</th></tr></thead>
+      <tbody>${[...tours].reverse().map(t=>`<tr>
+        <td class="td-white td-nowrap">${fmtDate(t['Tour Date'])}</td>
+        <td class="td-nowrap">${fmtTime(t['Tour Time'])}</td>
+        <td class="td-trunc td-white">${t['Tour Name']||'—'}</td>
+        <td><span class="cat-tag">${cat(t['Tour Name'])}</span></td>
+        <td class="td-nowrap">${t['Duration (hrs)']||'—'}${t['Duration (hrs)']?'h':''}</td>
+        <td class="td-teal">${t['Total Pax']||0}</td>
+        <td class="td-teal">${fmtMXN(t['Total Revenue (MXN)']||0)}</td>
+        <td>${t['Marina']||'—'}</td>
+        <td class="td-muted td-trunc">${t['Resources']||'—'}</td>
+        <td class="td-muted td-trunc">${t['Crew']||'—'}</td>
+        <td>${t['Booking Count']||0}</td>
+        <td>${t['Flag']?`<span class="pill p-pend">${t['Flag']}</span>`:'—'}</td>
+      </tr>`).join('')||'<tr><td colspan="12" class="empty">Sin tours</td></tr>'}
+      </tbody>
+    </table></div></div>`;
+}
+
+// ============================================================
+// VIEW: BOOKINGS
+// ============================================================
+function renderBookings() {
+  const bookings = [...(D.bookings||[])].reverse().slice(0,100);
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr fade-up">
+      <div class="page-title">Bookings — FareHarbor</div>
+      <div class="page-sub">${(D.bookings||[]).length} bookings total</div>
+    </div>
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <thead><tr><th>Fecha</th><th>Hora</th><th>Tour</th><th>Cat.</th><th>Cliente</th><th>Pax</th><th>Ingresos</th><th>Affiliate</th><th>Marina</th><th>Status</th></tr></thead>
+      <tbody>${bookings.map(b=>`<tr>
+        <td class="td-white td-nowrap">${fmtDate(b['Tour Date'])}</td>
+        <td>${fmtTime(b['Tour Time'])}</td>
+        <td class="td-trunc td-white">${b['Tour Name']||'—'}</td>
+        <td><span class="cat-tag">${cat(b['Tour Name'])}</span></td>
+        <td>${b['Contact Name']||'—'}</td>
+        <td class="td-teal">${b['Pax']||0}</td>
+        <td class="td-teal">${fmtMXN(b['Revenue (MXN)']||0)}</td>
+        <td class="td-muted">${b['Affiliate']||'Direct'}</td>
+        <td>${b['Marina']||'—'}</td>
+        <td>${pill(b['Status']||'')}</td>
+      </tr>`).join('')||'<tr><td colspan="10" class="empty">Sin bookings</td></tr>'}
+      </tbody>
+    </table></div></div>`;
+}
+
+// ============================================================
+// VIEW: GASOLINE
+// ============================================================
+function renderGasoline() {
+  const inv   = D.gas_inventory || {};
+  const boat  = [...(D.gas_boat||[])].reverse().slice(0,20);
+  const sta   = [...(D.gas_station||[])].reverse().slice(0,10);
+  const bidAvail = n(inv.bidones_available);
+  const invColor = bidAvail <= 2 ? 'var(--red)' : bidAvail <= 5 ? 'var(--amber)' : 'var(--teal)';
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr fade-up">
+      <div class="page-title">Gasolina</div>
+      <div class="page-sub">Inventario y consumo de combustible</div>
+    </div>
+
+    <div class="metrics metrics-3" style="margin-bottom:14px">
+      <div class="m-card">
+        <div class="m-lbl">Bidones disponibles</div>
+        <div class="m-val" style="color:${invColor}">${bidAvail}</div>
+        <div class="m-sub">${n(inv.liters_available)} litros estimados</div>
+      </div>
+      <div class="m-card">
+        <div class="m-lbl">Costo promedio / bidón</div>
+        <div class="m-val">${fmtMXN(inv.avg_cost_per_bidon||0)}</div>
+        <div class="m-sub">Últimas 3 compras</div>
+      </div>
+      <div class="m-card">
+        <div class="m-lbl">Total llenados / usados</div>
+        <div class="m-val">${n(inv.total_filled)} / ${n(inv.total_used)}</div>
+        <div class="m-sub">bidones histórico</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <div class="page-hdr">
+          <div class="page-title">Combustible por barco</div>
+          <button class="btn btn-primary btn-sm" onclick="openForm('gas-boat')">+ Registrar</button>
+        </div>
+        <div class="tbl-wrap"><div class="tbl-scroll"><table>
+          <thead><tr><th>Fecha</th><th>Barco</th><th>Bidones</th><th>Litros</th><th>Tour</th><th>Coord.</th></tr></thead>
+          <tbody>${boat.map(r=>`<tr>
+            <td class="td-nowrap">${fmtDate(r['Date'])}</td>
+            <td class="td-white">${r['Boat']||'—'}</td>
+            <td class="td-teal">${r['Bidones']||0}</td>
+            <td>${r['Liters (calc)']||0}</td>
+            <td class="td-muted">${r['Tour (Avail. PK)']||'—'}</td>
+            <td class="td-muted">${r['Coordinator']||'—'}</td>
+          </tr>`).join('')||'<tr><td colspan="6" class="empty">Sin registros</td></tr>'}
+          </tbody>
+        </table></div></div>
+      </div>
+      <div>
+        <div class="page-hdr">
+          <div class="page-title">Compras en estación</div>
+          <button class="btn btn-primary btn-sm" onclick="openForm('gas-station')">+ Registrar</button>
+        </div>
+        <div class="tbl-wrap"><div class="tbl-scroll"><table>
+          <thead><tr><th>Fecha</th><th>Bidones</th><th>Total</th><th>/ Bidón</th><th>Coord.</th></tr></thead>
+          <tbody>${sta.map(r=>`<tr>
+            <td class="td-nowrap">${fmtDate(r['Date'])}</td>
+            <td class="td-teal">${r['Bidones filled']||0}</td>
+            <td>${fmtMXN(r['Cost (MXN)']||0)}</td>
+            <td>${fmtMXN(r['Cost per Bidon']||0)}</td>
+            <td class="td-muted">${r['Coordinator']||'—'}</td>
+          </tr>`).join('')||'<tr><td colspan="5" class="empty">Sin registros</td></tr>'}
+          </tbody>
+        </table></div></div>
+      </div>
+    </div>`;
+}
+
+// ============================================================
+// VIEW: MAINTENANCE
+// ============================================================
+function renderMaintenance() {
+  const maint   = [...(D.maintenance||[])].reverse();
+  const summary = (D.maintenance_summary||{}).summary || [];
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr fade-up">
+      <div class="page-title">Mantenimiento</div>
+      <button class="btn btn-primary btn-sm" onclick="openForm('maintenance')">+ Registrar gasto</button>
+    </div>
+
+    ${summary.length > 0 ? `
+    <div class="panel">
+      <div class="panel-title">Costo total por embarcación</div>
+      ${summary.map(s=>barRow(s.resource, s.total_cost, Math.max(...summary.map(x=>x.total_cost),1), fmtMXN(s.total_cost)+' ('+s.entries+')')).join('')}
+    </div>` : ''}
+
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <thead><tr><th>Fecha</th><th>Resource</th><th>Categoría</th><th>Descripción</th><th>Costo</th><th>Status</th><th>Coord.</th></tr></thead>
+      <tbody>${maint.map(r=>`<tr>
+        <td class="td-nowrap">${fmtDate(r['Date'])}</td>
+        <td class="td-white">${r['Resource']||'—'}</td>
+        <td><span class="cat-tag">${r['Category']||'—'}</span></td>
+        <td class="td-trunc">${r['Description']||'—'}</td>
+        <td class="td-teal">${fmtMXN(r['Cost (MXN)']||0)}</td>
+        <td>${pill(r['Status']||'')}</td>
+        <td class="td-muted">${r['Coordinator']||'—'}</td>
+      </tr>`).join('')||'<tr><td colspan="7" class="empty">Sin registros</td></tr>'}
+      </tbody>
+    </table></div></div>`;
+}
+
+// ============================================================
+// VIEW: DENIED TOURS
+// ============================================================
+function renderDenied() {
+  const denied = [...(D.denied||[])].reverse();
+  const totalLost = sumF(denied,'Est. Revenue Lost');
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr fade-up">
+      <div class="page-title">Servicio negado</div>
+      <button class="btn btn-primary btn-sm" onclick="openForm('denied')">+ Registrar negación</button>
+    </div>
+    <div class="metrics metrics-2" style="margin-bottom:14px">
+      <div class="m-card accent-red"><div class="m-lbl">Total negaciones</div><div class="m-val">${denied.length}</div></div>
+      <div class="m-card accent-red"><div class="m-lbl">Ingreso estimado perdido</div><div class="m-val">${fmtMXN(totalLost)}</div></div>
+    </div>
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <thead><tr><th>Fecha</th><th>Tour</th><th>Solicitado por</th><th>Razón</th><th>Ing. perdido</th><th>Coord.</th><th>Notas</th></tr></thead>
+      <tbody>${denied.map(r=>`<tr>
+        <td class="td-nowrap">${fmtDate(r['Date'])}</td>
+        <td class="td-trunc td-white">${r['Tour Requested']||'—'}</td>
+        <td>${r['Requested By']||'Direct'}</td>
+        <td><span class="pill p-bad">${r['Reason']||'—'}</span></td>
+        <td class="td-red">${fmtMXN(r['Est. Revenue Lost']||0)}</td>
+        <td class="td-muted">${r['Coordinator']||'—'}</td>
+        <td class="td-muted td-trunc">${r['Notes']||'—'}</td>
+      </tr>`).join('')||'<tr><td colspan="7" class="empty">Sin registros</td></tr>'}
+      </tbody>
+    </table></div></div>`;
+}
+
+// ============================================================
+// VIEW: REVIEWS
+// ============================================================
+function renderReviews() {
+  const revs = [...(D.reviews||[])].reverse();
+  const total5  = revs.filter(r=>n(r['Stars'])===5).length;
+  const avgStars = revs.length > 0 ? Math.round(sumF(revs,'Stars')/revs.length*10)/10 : 0;
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr fade-up">
+      <div class="page-title">Reviews</div>
+      <button class="btn btn-primary btn-sm" onclick="openForm('review')">+ Registrar review</button>
+    </div>
+    <div class="metrics metrics-3" style="margin-bottom:14px">
+      <div class="m-card"><div class="m-lbl">Total reviews</div><div class="m-val">${revs.length}</div></div>
+      <div class="m-card accent-green"><div class="m-lbl">5 estrellas</div><div class="m-val">${total5}</div><div class="m-sub">${revs.length>0?Math.round(total5/revs.length*100):0}% del total</div></div>
+      <div class="m-card"><div class="m-lbl">Promedio estrellas</div><div class="m-val" style="color:var(--amber)">${avgStars}</div></div>
+    </div>
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <thead><tr><th>Fecha</th><th>Tour</th><th>Plataforma</th><th>Estrellas</th><th>Crew mencionado</th><th>Link</th><th>Por</th></tr></thead>
+      <tbody>${revs.map(r=>`<tr>
+        <td class="td-nowrap">${fmtDate(r['Tour Date']||r['Date'])}</td>
+        <td class="td-trunc td-white">${r['Tour Name']||'—'}</td>
+        <td>${r['Platform']||'—'}</td>
+        <td><span class="stars">${stars(n(r['Stars']))}</span></td>
+        <td>${r['Crew Mentioned']||'—'}</td>
+        <td>${r['Link']?`<a href="${r['Link']}" target="_blank" style="font-size:10px">Ver →</a>`:'—'}</td>
+        <td class="td-muted">${r['Logged By']||'—'}</td>
+      </tr>`).join('')||'<tr><td colspan="7" class="empty">Sin reviews registrados</td></tr>'}
+      </tbody>
+    </table></div></div>`;
+}
+
+// ============================================================
+// VIEW: KPI
+// ============================================================
+function renderKPI() {
+  const kpi = [...(D.kpi||[])].reverse();
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr fade-up">
+      <div class="page-title">KPI semanal</div>
+      <div class="page-sub">Bono 2% venta neta — columnas manuales en amarillo</div>
+    </div>
+    <div class="warn-box">Las columnas de % (Cost Ratio, Deny, Uptime, Checklist, Reviews, 5-Star) se ingresan manualmente en Google Sheets → KPI Summary</div>
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <thead><tr><th>Semana</th><th>Aprob.</th><th>Tours</th><th>Pax</th><th>Ingresos</th>
+        <th style="background:#2a1f00;color:var(--amber)">Costos %</th>
+        <th style="background:#2a1f00;color:var(--amber)">Negados %</th>
+        <th style="background:#2a1f00;color:var(--amber)">Uptime %</th>
+        <th style="background:#2a1f00;color:var(--amber)">Checklist %</th>
+        <th style="background:#2a1f00;color:var(--amber)">Reviews %</th>
+        <th style="background:#2a1f00;color:var(--amber)">5★ %</th>
+        <th>Score</th></tr></thead>
+      <tbody>${kpi.map(r=>{
+        const sc = parseFloat(r['Total KPI Score']);
+        const scCol = !isNaN(sc)?(sc>=85?'var(--green)':sc>=70?'var(--amber)':'var(--red)'):'var(--text3)';
+        return `<tr>
+          <td class="td-white td-nowrap">${fmtDate(r['Week Start'])}</td>
+          <td>${r['Days Approved']||0}/${n(r['Days Approved'])+n(r['Days Pending'])}</td>
+          <td>${r['Tours']||0}</td>
+          <td>${r['Pax']||0}</td>
+          <td class="td-teal">${fmtMXN(r['Revenue (MXN)']||0)}</td>
+          <td style="background:rgba(240,180,41,.06)">${r['Cost Ratio %']||'—'}</td>
+          <td style="background:rgba(240,180,41,.06)">${r['Deny Service %']||'—'}</td>
+          <td style="background:rgba(240,180,41,.06)">${r['Uptime %']||'—'}</td>
+          <td style="background:rgba(240,180,41,.06)">${r['Checklist %']||'—'}</td>
+          <td style="background:rgba(240,180,41,.06)">${r['Reviews Coverage %']||'—'}</td>
+          <td style="background:rgba(240,180,41,.06)">${r['5-Star %']||'—'}</td>
+          <td style="color:${scCol};font-weight:700;font-size:14px">${!isNaN(sc)?sc+'%':'—'}</td>
+        </tr>`;
+      }).join('')||'<tr><td colspan="12" class="empty">Sin datos KPI</td></tr>'}
+      </tbody>
+    </table></div></div>`;
+}
+
+// ============================================================
+// VIEW: PAGOS CREW
+// ============================================================
+function renderPagos() {
+  const payments = D.crew_payments || [];
+  const current  = D.current_payments || {};
+  const weekStart = current.week_start || '';
+  const weekPayments = payments.filter(r => r['Week Start'] === weekStart);
+  const totalAmount = sumF(weekPayments,'Total (MXN)');
+  const pendingPay  = weekPayments.filter(r=>r['Status']!=='Paid');
+
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr fade-up">
+      <div class="page-title">Pagos crew</div>
+      <div class="page-sub">Ciclo: ${fmtDate(weekStart)} — pago el jueves siguiente</div>
+    </div>
+    <div class="metrics metrics-3" style="margin-bottom:14px">
+      <div class="m-card"><div class="m-lbl">Crew a pagar</div><div class="m-val">${weekPayments.length}</div></div>
+      <div class="m-card"><div class="m-lbl">Total a pagar</div><div class="m-val">${fmtMXN(totalAmount)}</div></div>
+      <div class="m-card${pendingPay.length>0?' accent-amber':''}"><div class="m-lbl">Pendientes de pago</div><div class="m-val">${pendingPay.length}</div></div>
+    </div>
+
+    ${weekPayments.length > 0 ? `
     <div class="tbl-wrap">
       <div class="tbl-hdr">
-        <div class="s-title">Todos los tours</div>
-        <div class="s-sub">${totalTours} availabilities</div>
+        <div class="page-title">Semana actual — ${fmtDate(weekStart)}</div>
+        ${pendingPay.length===0?'<span class="pill p-green">Todo pagado</span>':
+          `<button class="btn btn-primary btn-sm" onclick="markAllPaid('${weekStart}')">Marcar todos como pagados</button>`}
       </div>
-      <table>
-        <thead><tr><th>Fecha</th><th>Hora</th><th>Tour</th><th>Categoría</th><th>Personas</th><th>Ingresos</th><th>Marina</th><th>Affiliate</th><th>Crew</th><th>Bookings</th></tr></thead>
-        <tbody>
-          ${tours.slice(0,60).map(t=>`<tr>
-            <td style="color:var(--white);font-weight:600">${fmtDate(t.date)}</td>
-            <td>${fmtTime(t.time)}</td>
-            <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--white)">${t.tourName}</td>
-            <td><span class="cat-tag">${getTourCategory(t.tourName)}</span></td>
-            <td style="color:var(--teal);font-weight:600">${t.totalPeople}</td>
-            <td style="color:var(--teal);font-weight:600">${fmtMXN(t.totalRevenue)}</td>
-            <td>${t.marina}</td>
-            <td style="color:var(--text3)">${t.affiliate}</td>
-            <td style="font-size:10px;color:var(--text3);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.crew||'—'}</td>
-            <td>${t.bookings.length}</td>
-          </tr>`).join('')||'<tr><td colspan="10" class="empty">Sin tours</td></tr>'}
+      <div class="tbl-scroll"><table>
+        <thead><tr><th>Crew</th><th>Tours</th><th>Base</th><th>Horas extra</th><th>Ajuste</th><th>Total</th><th>Status</th><th>Notas ajuste</th></tr></thead>
+        <tbody>${weekPayments.map((r,i)=>`<tr>
+          <td class="td-white">${r['Crew Member']||'—'}</td>
+          <td>${r['Tours Worked']||0}</td>
+          <td>${fmtMXN(r['Base Amount (MXN)']||0)}</td>
+          <td>${fmtMXN(r['Extra Hours Pay']||0)}</td>
+          <td><input class="adj-input" type="number" value="${r['Adjustments (MXN)']||0}" onchange="saveAdjustment('${r['Week Start']}','${r['Username']}',this.value,document.getElementById('adj-note-${i}').value)" placeholder="0"></td>
+          <td class="td-teal"><strong>${fmtMXN(r['Total (MXN)']||0)}</strong></td>
+          <td>${pill(r['Status']||'Pending Review')}</td>
+          <td><input id="adj-note-${i}" style="background:var(--dark3);border:1px solid var(--border);border-radius:3px;color:var(--white);font-size:10px;padding:2px 6px;width:140px" value="${r['Adjustment Notes']||''}" placeholder="Motivo..."></td>
+        </tr>`).join('')}
         </tbody>
-      </table>
-    </div>
-  `;
-}
+      </table></div>
+    </div>` : '<div class="info-box">No hay pagos calculados para esta semana. Los pagos se calculan automáticamente cada miércoles a las 11pm.</div>'}
 
-// ---- BOOKINGS VIEW ----
-function renderBookings() {
-  const filtered = [...bookings].reverse().slice(0,80);
-  document.getElementById('main').innerHTML = `
-    <div class="s-hdr">
-      <div class="s-title">Bookings — FareHarbor</div>
-      <div class="s-sub">${bookings.length} bookings totales</div>
-    </div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Fecha</th><th>Hora</th><th>Tour</th><th>Cat.</th><th>Cliente</th><th>Personas</th><th>Affiliate</th><th>Marina</th><th>Ingresos</th><th>Status</th></tr></thead>
-      <tbody>
-        ${filtered.map(b=>`<tr>
-          <td style="color:var(--white)">${fmtDate(b['Tour Date'])}</td>
-          <td>${fmtTime(b['Tour Time'])}</td>
-          <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b['Tour Name']||'—'}</td>
-          <td><span class="cat-tag">${getTourCategory(b['Tour Name'])}</span></td>
-          <td>${b['Contact Name']||'—'}</td>
-          <td style="color:var(--teal);font-weight:600">${getActualPeople(b)}</td>
-          <td style="color:var(--text3)">${b['Affiliate']||'Direct'}</td>
-          <td>${b['Marina']||'—'}</td>
-          <td style="color:var(--teal);font-weight:600">${fmtMXN(getRevenue(b))}</td>
-          <td>${pill(b['Status']||'')}</td>
-        </tr>`).join('')||'<tr><td colspan="10" class="empty">Sin bookings</td></tr>'}
+    ${payments.filter(r=>r['Week Start']!==weekStart).length > 0 ? `
+    <div class="page-hdr" style="margin-top:8px"><div class="page-title">Historial de pagos</div></div>
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <thead><tr><th>Semana</th><th>Crew</th><th>Tours</th><th>Total</th><th>Status</th><th>Fecha pago</th></tr></thead>
+      <tbody>${[...payments].filter(r=>r['Week Start']!==weekStart).reverse().slice(0,20).map(r=>`<tr>
+        <td class="td-nowrap">${fmtDate(r['Week Start'])}</td>
+        <td>${r['Crew Member']||'—'}</td>
+        <td>${r['Tours Worked']||0}</td>
+        <td class="td-teal">${fmtMXN(r['Total (MXN)']||0)}</td>
+        <td>${pill(r['Status']||'')}</td>
+        <td class="td-muted">${fmtDate(r['Payment Date'])}</td>
+      </tr>`).join('')}
       </tbody>
-    </table></div>`;
+    </table></div></div>` : ''}`;
 }
 
-// ---- KPI VIEW ----
-function renderKPI() {
-  if(!kpi.length){ document.getElementById('main').innerHTML='<div class="loading">Sin datos de KPI aún</div>'; return; }
+async function saveAdjustment(weekStart, username, amount, notes) {
+  try {
+    const r = await apiCall('crew_adjustment', { week_start: weekStart, username, adjustments: amount, adj_notes: notes });
+    if (r.status === 'ok') showToast('Ajuste guardado — Total: '+fmtMXN(r.new_total), 'ok');
+    else showToast('Error: '+r.message, 'err');
+  } catch(e) { showToast('Error de conexión', 'err'); }
+}
+
+async function markAllPaid(weekStart) {
+  try {
+    const r = await apiCall('crew_paid', { week_start: weekStart, paid_by: 'Admin' });
+    if (r.status === 'ok') {
+      showToast(r.message + ' — '+fmtMXN(r.total_paid), 'ok');
+      await loadAll();
+    } else showToast('Error: '+r.message, 'err');
+  } catch(e) { showToast('Error de conexión', 'err'); }
+}
+
+// ============================================================
+// VIEW: EMBARCACIONES (BOAT READINESS)
+// ============================================================
+function renderEmbarcaciones() {
+  const readiness = (D.boat_readiness||{}).boats || [];
+  const operable   = readiness.filter(b=>b.operable).length;
+
   document.getElementById('main').innerHTML = `
-    <div class="s-hdr"><div class="s-title">KPI semanal</div><div class="s-sub">Bono 2% venta neta</div></div>
-    <div style="padding:10px 14px;background:var(--dark2);border:1px solid var(--border);border-radius:5px;font-size:11px;color:var(--text3);margin-bottom:14px">
-      <strong style="color:var(--teal)">Columnas manuales (Google Sheets → KPI Summary):</strong> Cost Ratio % · Deny Service % · Uptime % · Checklist % · Reviews Coverage % · 5-Star %
+    <div class="page-hdr fade-up">
+      <div class="page-title">Embarcaciones — Estado de documentos</div>
+      <div class="page-sub">${operable} de ${readiness.length} embarcaciones operables</div>
     </div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Semana</th><th>Aprobados</th><th>Tours</th><th>Ingresos</th><th>Costos %</th><th>Negados %</th><th>Uptime %</th><th>Checklist %</th><th>Reviews %</th><th>5★ %</th><th>Score</th></tr></thead>
-      <tbody>
-        ${[...kpi].reverse().map(r=>{
-          const sc=parseFloat(r['Total KPI Score']);
-          const sc_col=!isNaN(sc)?(sc>=85?'var(--teal)':sc>=70?'var(--amber)':'var(--red)'):'var(--text3)';
-          return `<tr>
-            <td style="color:var(--white)">${fmtDate(r['Week Start'])}</td>
-            <td>${r['Days Approved']||0}/${n(r['Days Approved'])+n(r['Days Pending'])}</td>
-            <td>${r['Tours (approved)']||0}</td>
-            <td style="color:var(--teal)">${fmtMXN(n(r['Revenue (MXN)']))}</td>
-            <td>${r['Cost Ratio %']||'—'}</td>
-            <td>${r['Deny Service %']||'—'}</td>
-            <td>${r['Uptime %']||'—'}</td>
-            <td>${r['Checklist %']||'—'}</td>
-            <td>${r['Reviews Coverage %']||'—'}</td>
-            <td>${r['5-Star %']||'—'}</td>
-            <td style="color:${sc_col};font-weight:700;font-size:14px">${!isNaN(sc)?sc+'%':'—'}</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table></div>`;
+    ${readiness.length === 0 ? '<div class="info-box">Sin datos. Ejecuta "Init boat docs" en Apps Script para inicializar.</div>' : ''}
+    ${readiness.map(boat=>`
+      <div class="boat-card">
+        <div class="boat-card-hdr" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+          <div class="boat-card-name">${boat.resource}</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            ${boat.worst_status==='Vencido'?'<span class="pill p-bad">Vencido</span>':boat.worst_status==='Por vencer'?'<span class="pill p-pend">Por vencer</span>':'<span class="pill p-ok">Operable</span>'}
+            <span style="color:var(--text3);font-size:12px">▾</span>
+          </div>
+        </div>
+        <div class="boat-docs-list" style="display:none">
+          ${boat.docs.map(doc=>`
+            <div class="doc-row">
+              <div class="doc-name">${doc.document||'—'}</div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <div class="doc-expiry">${doc.expiry_date?fmtDate(doc.expiry_date):'Sin fecha'}</div>
+                ${pill(doc.status||'Unknown')}
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`).join('')}`;
 }
 
-// ---- RESOURCES VIEW ----
+// ============================================================
+// VIEW: RESOURCES
+// ============================================================
 function renderResources() {
-  const marinaGroups={};
+  const resources = D.resources || [];
+  const active = resources.filter(r=>r['status — active or out_of_service']==='active').length;
+  const groups = {};
   resources.forEach(r=>{
-    const m=r['marina — operating location']||'Sin marina';
-    if(!marinaGroups[m]) marinaGroups[m]=[];
-    marinaGroups[m].push(r);
+    const m = r['marina — operating location']||'Sin marina';
+    if(!groups[m]) groups[m]=[];
+    groups[m].push(r);
   });
+
   document.getElementById('main').innerHTML = `
-    <div class="s-hdr">
-      <div class="s-title">Resources</div>
-      <div class="s-sub">${resources.filter(r=>r['status — active or out_of_service']==='active').length} activos · ${resources.filter(r=>r['status — active or out_of_service']==='out_of_service').length} fuera de servicio</div>
+    <div class="page-hdr fade-up">
+      <div class="page-title">Resources</div>
+      <div class="page-sub">${active} activos · ${resources.length} total</div>
     </div>
-    ${Object.entries(marinaGroups).map(([marina,res])=>`
+    ${Object.entries(groups).map(([marina,res])=>`
       <div style="margin-bottom:16px">
-        <div class="s-hdr"><div class="s-title">${marina}</div></div>
+        <div class="page-hdr"><div class="page-title">${marina}</div></div>
         <div class="res-grid">
           ${res.map(r=>{
-            const op=r['status — active or out_of_service']==='active';
-            const ext=isExternalResource(r['name — resource name']);
-            return `<div class="res-card" style="border-left:3px solid ${ext?'var(--orange)':op?'var(--teal)':'var(--red)'}">
+            const op = r['status — active or out_of_service']==='active';
+            const ext = (r['name — resource name']||'').toLowerCase().match(/ramona|skybell/);
+            const color = ext?'var(--orange)':op?'var(--teal)':'var(--red)';
+            return `<div class="res-card" style="border-left:3px solid ${color}">
               <div class="res-name">${r['name — resource name']||'—'}</div>
               <div class="res-meta">${r['type — type of resource']||'—'} · cap. ${r['max_uses — capacity / max concurrent uses']||'—'}</div>
-              ${r['notes — internal notes']?`<div class="res-meta" style="margin-top:2px">${r['notes — internal notes']}</div>`:''}
-              <div class="res-status ${ext?'rs-ext':op?'rs-op':'rs-off'}">${ext?'● Externo':op?'● Operativo':'● Fuera servicio'}</div>
+              <div class="res-status" style="color:${color}">${ext?'● Externo':op?'● Operativo':'● Fuera servicio'}</div>
             </div>`;
           }).join('')}
         </div>
-      </div>
-    `).join('')}
-    <div style="padding:8px 12px;background:var(--dark2);border:1px solid var(--border);border-radius:4px;font-size:10px;color:var(--text3)">
-      <span style="color:var(--orange)">● Externo</span> = resource de terceros (Ramona, Skybell) — costo se registra por separado · Para editar: Google Sheets → <strong style="color:var(--teal)">Resources</strong>
-    </div>`;
+      </div>`).join('')}
+    <div class="info-box">Para editar resources: Google Sheets → Resources tab</div>`;
 }
 
-// ---- CREW VIEW ----
+// ============================================================
+// VIEW: CREW
+// ============================================================
 function renderCrew() {
+  const crew = D.crew || [];
   document.getElementById('main').innerHTML = `
-    <div class="s-hdr">
-      <div class="s-title">Crew</div>
-      <div class="s-sub">${crew.filter(c=>c['status — active, leaving, or inactive']==='active').length} activos</div>
+    <div class="page-hdr fade-up">
+      <div class="page-title">Crew</div>
+      <div class="page-sub">${crew.filter(c=>c['status — active, leaving, or inactive']==='active').length} activos</div>
     </div>
-    <div class="tbl-wrap"><table>
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
       <thead><tr><th>Nombre</th><th>Username</th><th>Role</th><th>Group</th><th>Marina</th><th>Status</th></tr></thead>
-      <tbody>
-        ${crew.map(c=>`<tr>
-          <td style="color:var(--white);font-weight:500">${c['name — full name']||'—'}</td>
-          <td style="color:var(--text3)">${c['username — FareHarbor username']||'—'}</td>
-          <td>${c['role — crew role in FareHarbor']||'—'}</td>
-          <td>${c['group — FareHarbor group']||'—'}</td>
-          <td>${c['marina — primary location']||'—'}</td>
-          <td>${pill(c['status — active, leaving, or inactive']||'')}</td>
-        </tr>`).join('')||'<tr><td colspan="6" class="empty">Sin crew</td></tr>'}
+      <tbody>${crew.map(c=>`<tr>
+        <td class="td-white">${c['name — full name']||'—'}</td>
+        <td class="td-muted">${c['username — FareHarbor username']||'—'}</td>
+        <td>${c['role — crew role in FareHarbor']||'—'}</td>
+        <td class="td-muted">${c['group — FareHarbor group']||'—'}</td>
+        <td>${c['marina — primary location']||'—'}</td>
+        <td>${pill(c['status — active, leaving, or inactive']||'')}</td>
+      </tr>`).join('')||'<tr><td colspan="6" class="empty">Sin crew</td></tr>'}
       </tbody>
-    </table></div>
-    <div style="padding:8px 12px;background:var(--dark2);border:1px solid var(--border);border-radius:4px;font-size:10px;color:var(--text3)">
-      Para agregar crew: Google Sheets → <strong style="color:var(--teal)">Crew</strong>
-    </div>`;
+    </table></div></div>`;
 }
 
-// ---- ITEMS VIEW ----
+// ============================================================
+// VIEW: ITEMS
+// ============================================================
 function renderItems() {
+  const items = D.items || [];
   document.getElementById('main').innerHTML = `
-    <div class="s-hdr">
-      <div class="s-title">Items (productos)</div>
-      <div class="s-sub">${items.filter(i=>i['status — on or off']==='on').length} activos · ${items.length} total</div>
+    <div class="page-hdr fade-up">
+      <div class="page-title">Items (productos)</div>
+      <div class="page-sub">${items.filter(i=>i['status — on or off']==='on').length} activos</div>
     </div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>ID</th><th>Nombre</th><th>Categoría</th><th>Marina</th><th>Duración</th><th>Tipo</th><th>Status</th></tr></thead>
-      <tbody>
-        ${items.map(i=>`<tr>
-          <td style="color:var(--text3)">${i['pk — FareHarbor item ID']||'—'}</td>
-          <td style="color:var(--white);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${i['name — item name (exact FareHarbor name)']||'—'}</td>
-          <td><span class="cat-tag">${i['category — dashboard category']||getTourCategory(i['name — item name (exact FareHarbor name)'])}</span></td>
-          <td>${i['marina — operating location']||'—'}</td>
-          <td>${i['duration_hrs — approximate duration']?i['duration_hrs — approximate duration']+' hrs':'—'}</td>
-          <td>${i['booking_type — colectivo or privado or renta']||'—'}</td>
-          <td>${pill(i['status — on or off']||'')}</td>
-        </tr>`).join('')||'<tr><td colspan="7" class="empty">Sin items</td></tr>'}
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <thead><tr><th>PK</th><th>Nombre</th><th>Categoría</th><th>Marina</th><th>Duración</th><th>Tipo</th><th>Status</th></tr></thead>
+      <tbody>${items.map(i=>`<tr>
+        <td class="td-muted">${i['pk — FareHarbor item ID']||'—'}</td>
+        <td class="td-trunc td-white">${i['name — item name (exact FareHarbor name)']||'—'}</td>
+        <td><span class="cat-tag">${i['category — dashboard category']||cat(i['name — item name (exact FareHarbor name)'])}</span></td>
+        <td>${i['marina — operating location']||'—'}</td>
+        <td>${i['duration_hrs — approximate duration']?i['duration_hrs — approximate duration']+'h':'—'}</td>
+        <td class="td-muted">${i['booking_type — colectivo or privado or renta']||'—'}</td>
+        <td>${pill(i['status — on or off']||'')}</td>
+      </tr>`).join('')||'<tr><td colspan="7" class="empty">Sin items</td></tr>'}
       </tbody>
-    </table></div>
-    <div style="padding:8px 12px;background:var(--dark2);border:1px solid var(--border);border-radius:4px;font-size:10px;color:var(--text3)">
-      Para agregar items: Google Sheets → <strong style="color:var(--teal)">Items</strong>
-    </div>`;
+    </table></div></div>`;
 }
 
-// ---- DETAIL PANELS ----
-function toggleDetail(id){
-  const p=document.getElementById('detail-'+id);
-  if(!p)return;
-  const vis=p.classList.contains('vis');
-  document.querySelectorAll('.detail').forEach(x=>x.classList.remove('vis'));
-  if(!vis){p.classList.add('vis');p.scrollIntoView({behavior:'smooth',block:'nearest'});}
+// ============================================================
+// VIEW: ERROR LOG
+// ============================================================
+function renderErrores() {
+  const errors = [...(D.errors||[])].reverse();
+  document.getElementById('main').innerHTML = `
+    <div class="page-hdr fade-up">
+      <div class="page-title">Error Log</div>
+      <div class="page-sub">${errors.length} errores recientes</div>
+    </div>
+    ${errors.length === 0 ? '<div style="text-align:center;padding:24px;color:var(--teal)">✓ Sin errores recientes</div>' : ''}
+    <div class="tbl-wrap"><div class="tbl-scroll"><table>
+      <thead><tr><th>Timestamp</th><th>Contexto</th><th>Error</th></tr></thead>
+      <tbody>${errors.map(e=>`<tr>
+        <td class="td-nowrap td-muted">${fmtDate(e['Timestamp'])} ${String(e['Timestamp']).substring(10,16)}</td>
+        <td class="td-white">${e['Context']||'—'}</td>
+        <td class="td-red td-trunc">${e['Error Message']||'—'}</td>
+      </tr>`).join('')||'<tr><td colspan="3" class="empty">Sin errores</td></tr>'}
+      </tbody>
+    </table></div></div>`;
 }
-function closeDetail(){document.querySelectorAll('.detail').forEach(p=>p.classList.remove('vis'));}
 
+// ============================================================
+// FORM HELPERS
+// ============================================================
+function openForm(id) {
+  populateFormDropdowns(id);
+  document.getElementById('form-'+id).classList.add('open');
+  // Set today's date as default
+  const dateInputs = document.querySelectorAll('#form-'+id+' input[type="date"]');
+  dateInputs.forEach(inp => { if (!inp.value) inp.value = today(); });
+  const timeInputs = document.querySelectorAll('#form-'+id+' input[type="time"]');
+  timeInputs.forEach(inp => { if (!inp.value) { const now=new Date(); inp.value=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0'); }});
+}
+
+function closeForm(id) {
+  document.getElementById('form-'+id).classList.remove('open');
+  const msg = document.getElementById(id.replace('-','').substring(0,2)+'-msg') || document.getElementById(id+'-msg');
+  if (msg) { msg.className='form-msg'; msg.textContent=''; }
+}
+
+function populateFormDropdowns(formId) {
+  const resources = (D.resources||[]).filter(r=>r['status — active or out_of_service']==='active');
+  const crew      = (D.crew||[]).filter(c=>c['status — active, leaving, or inactive']==='active');
+  const coords    = crew.filter(c=>(c['role — crew role in FareHarbor']||'').toLowerCase().includes('coordinador'));
+  const items     = D.items||[];
+
+  const resOptions   = resources.map(r=>`<option value="${r['name — resource name']}">${r['name — resource name']}</option>`).join('');
+  const coordOptions = coords.length > 0
+    ? coords.map(c=>`<option value="${c['name — full name']}">${c['name — full name']}</option>`).join('')
+    : crew.slice(0,6).map(c=>`<option value="${c['name — full name']}">${c['name — full name']}</option>`).join('');
+  const crewOptions  = crew.map(c=>`<option value="${c['name — full name']}">${c['name — full name']}</option>`).join('');
+  const itemOptions  = items.map(i=>`<option value="${i['name — item name (exact FareHarbor name)']}">${i['name — item name (exact FareHarbor name)']}</option>`).join('');
+
+  const sets = {
+    'gas-boat':    { '#gb-resource': resOptions, '#gb-coordinator': coordOptions },
+    'gas-station': { '#gs-coordinator': coordOptions },
+    'maintenance': { '#maint-resource': resOptions, '#maint-coordinator': coordOptions },
+    'denied':      { '#den-tour': itemOptions, '#den-coordinator': coordOptions },
+    'review':      { '#rev-tour': itemOptions, '#rev-crew': crewOptions, '#rev-logged-by': coordOptions },
+  };
+
+  const targets = sets[formId] || {};
+  Object.entries(targets).forEach(([sel, opts]) => {
+    const el = document.querySelector(sel);
+    if (el) el.innerHTML = '<option value="">Seleccionar...</option>' + opts;
+  });
+}
+
+// Auto-calculate liters from bidones
+document.addEventListener('input', e => {
+  if (e.target.id === 'gb-bidones') {
+    const b = parseInt(e.target.value)||0;
+    document.getElementById('gb-liters-hint').textContent = '= '+(b*18)+' litros';
+  }
+  if (e.target.id === 'gs-bidones' || e.target.id === 'gs-cost') {
+    const b = n(document.getElementById('gs-bidones').value);
+    const c = n(document.getElementById('gs-cost').value);
+    document.getElementById('gs-per-bidon').value = b > 0 ? fmtMXN(c/b) : '—';
+  }
+});
+
+// ============================================================
+// FORM SUBMISSIONS
+// ============================================================
+async function submitGasBoat() {
+  const data = {
+    date:            document.getElementById('gb-date').value,
+    time:            document.getElementById('gb-time').value,
+    resource:        document.getElementById('gb-resource').value,
+    bidones:         document.getElementById('gb-bidones').value,
+    coordinator:     document.getElementById('gb-coordinator').value,
+    availability_pk: document.getElementById('gb-tour').value,
+    notes:           document.getElementById('gb-notes').value,
+  };
+  await submitForm('gas_boat', data, 'gb-msg', 'gas-boat');
+}
+
+async function submitGasStation() {
+  const data = {
+    date:        document.getElementById('gs-date').value,
+    bidones:     document.getElementById('gs-bidones').value,
+    cost_mxn:    document.getElementById('gs-cost').value,
+    coordinator: document.getElementById('gs-coordinator').value,
+    notes:       document.getElementById('gs-notes').value,
+  };
+  await submitForm('gas_station', data, 'gs-msg', 'gas-station');
+}
+
+async function submitMaintenance() {
+  const data = {
+    date:        document.getElementById('maint-date').value,
+    resource:    document.getElementById('maint-resource').value,
+    category:    document.getElementById('maint-category').value,
+    description: document.getElementById('maint-desc').value,
+    cost_mxn:    document.getElementById('maint-cost').value,
+    status:      document.getElementById('maint-status').value,
+    coordinator: document.getElementById('maint-coordinator').value,
+    notes:       document.getElementById('maint-notes').value,
+  };
+  await submitForm('maintenance', data, 'maint-msg', 'maintenance');
+}
+
+async function submitDenied() {
+  const data = {
+    date:        document.getElementById('den-date').value,
+    tour_name:   document.getElementById('den-tour').value,
+    affiliate:   document.getElementById('den-affiliate').value,
+    reason:      document.getElementById('den-reason').value,
+    est_revenue: document.getElementById('den-revenue').value,
+    coordinator: document.getElementById('den-coordinator').value,
+    notes:       document.getElementById('den-notes').value,
+  };
+  await submitForm('denied', data, 'den-msg', 'denied');
+}
+
+async function submitReview() {
+  const data = {
+    date:          document.getElementById('rev-date').value,
+    tour_date:     document.getElementById('rev-tour-date').value,
+    tour_name:     document.getElementById('rev-tour').value,
+    platform:      document.getElementById('rev-platform').value,
+    stars:         document.getElementById('rev-stars').value,
+    crew_mentioned:document.getElementById('rev-crew').value,
+    link:          document.getElementById('rev-link').value,
+    logged_by:     document.getElementById('rev-logged-by').value,
+    notes:         document.getElementById('rev-notes').value,
+  };
+  await submitForm('review', data, 'rev-msg', 'review');
+}
+
+async function submitForm(action, data, msgId, formId) {
+  const msgEl = document.getElementById(msgId);
+  const btns  = document.querySelectorAll('#form-'+formId+' .btn-primary');
+  btns.forEach(b=>{ b.disabled=true; b.textContent='Guardando...'; });
+
+  try {
+    const r = await apiCall(action, data);
+    if (r.status === 'ok') {
+      msgEl.className = 'form-msg ok';
+      msgEl.textContent = r.message || 'Guardado correctamente';
+      showToast(r.message || 'Guardado', 'ok');
+      setTimeout(() => { closeForm(formId); loadAll(); }, 1200);
+    } else {
+      msgEl.className = 'form-msg err';
+      msgEl.textContent = r.message || 'Error al guardar';
+    }
+  } catch(e) {
+    msgEl.className = 'form-msg err';
+    msgEl.textContent = 'Error de conexión: ' + e.message;
+  } finally {
+    btns.forEach(b=>{ b.disabled=false; b.textContent='Guardar'; });
+  }
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+let toastTimer;
+function showToast(msg, type='info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ t.className=''; }, 3000);
+}
+
+// ============================================================
+// INIT
+// ============================================================
 loadAll();
 </script>
 </body>
