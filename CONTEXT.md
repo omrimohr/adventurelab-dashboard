@@ -41,8 +41,8 @@ Read this file at the start of every session before doing anything.
   - `CrewPayments.js` — crew payment calculations (Wed→Wed cycle)
   - `API.js` — serves data to the dashboard frontend
   - `QBO.js` — QuickBooks Online sync (Phase 1 complete)
-- **How to push changes:** Run `clasp push` from inside the `apps-script/` folder.
-- **How to pull latest from Google:** Run `clasp pull` from inside the `apps-script/` folder.
+- **How to push changes:** Run `clasp push` from inside the `apps-script/adv-lab-dashboard/` folder (that's where `.clasp.json` lives).
+- **How to pull latest from Google:** Run `clasp pull` from inside the `apps-script/adv-lab-dashboard/` folder.
 
 ---
 
