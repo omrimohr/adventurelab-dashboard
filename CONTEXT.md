@@ -69,6 +69,11 @@ Read this file at the start of every session before doing anything.
 - [ ] QBO Phase 3 (send to QBO) — pending
 - [ ] Coordinator limited view (Edder & Jesus) — future
 
+### Session log (2026-06-11)
+- Fixed revenue calc bugs: Commission = Gross - Net (Tax no longer subtracted); Gross = invoice_price when it exceeds receipt_total (Habitas/Mia/Solana).
+- Removed duplicate Bookings row for booking #353980577 (kept Casa Hormiga Hotel row, deleted stale Direct row).
+- `writeBookingToSheet()` now upserts by Booking PK (not UUID) to prevent future duplicates when a booking's UUID changes across edits/rebooks.
+
 ---
 
 ## Rules for Claude Code
