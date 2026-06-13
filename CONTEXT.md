@@ -74,6 +74,13 @@ Read this file at the start of every session before doing anything.
 - Removed duplicate Bookings row for booking #353980577 (kept Casa Hormiga Hotel row, deleted stale Direct row).
 - `writeBookingToSheet()` now upserts by Booking PK (not UUID) to prevent future duplicates when a booking's UUID changes across edits/rebooks.
 
+### Session log (2026-06-13) — Part 2: Pax fix
+- Pax now comes directly from `booking.customer_count` — removed the old keyword-based `extractPax()`/`derivePax()` custom-field logic and unused `PEOPLE_KEYWORDS` config.
+- Added `withRetry()` helper (Helpers.js) for transient "Service Spreadsheets timed out" errors.
+- `rebuildBookingsFromRaw_Start()` now clears the Bookings sheet instead of delete+recreate (avoided repeated timeouts).
+- Rebuild completed successfully: 1164 written, 28 skipped, 0 errors.
+- Removed a leftover time-driven trigger on `rebuildBookingsFromRaw_Continue` that was re-running the full rebuild every ~5 min.
+
 ---
 
 ## Rules for Claude Code
