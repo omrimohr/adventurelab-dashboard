@@ -41,6 +41,7 @@ Read this file at the start of every session before doing anything.
   - `CrewPayments.js` — crew payment calculations (Wed→Wed cycle)
   - `API.js` — serves data to the dashboard frontend
   - `QBO.js` — QuickBooks Online sync (Phase 1 complete)
+  - `Corrections.js` — manual booking corrections + day authorization
 - **How to push changes:** Run `clasp push` from inside the `apps-script/adv-lab-dashboard/` folder (that's where `.clasp.json` lives).
 - **How to pull latest from Google:** Run `clasp pull` from inside the `apps-script/adv-lab-dashboard/` folder.
 
@@ -80,6 +81,16 @@ Read this file at the start of every session before doing anything.
 - `rebuildBookingsFromRaw_Start()` now clears the Bookings sheet instead of delete+recreate (avoided repeated timeouts).
 - Rebuild completed successfully: 1164 written, 28 skipped, 0 errors.
 - Removed a leftover time-driven trigger on `rebuildBookingsFromRaw_Continue` that was re-running the full rebuild every ~5 min.
+
+### Session log (2026-06-13/14) — Parts 3-6: Tours columns, performance fix, corrections workflow
+- **Part 3:** Added new Tours columns (category, duration, marina, pax discrepancy, revenue/commission/IVA totals, booking count & PKs, crew, resources, flags, booking notes) plus a `custom_fields` column carried over from Bookings.
+- **Part 4:** `rebuildTours()` was timing out ("Service Spreadsheets timed out" / "Exceeded maximum execution time"). Rewrote it to build all tour rows in memory and write the whole Tours sheet in one bulk `setValues()` call instead of row-by-row writes. Verified: 573 tours rebuilt in ~9.4s.
+- **Part 5:** Added correction/authorization columns to Bookings (`Corrected Pax`, `Last Corrected By`, `Last Corrected At`, `Authorized`, `Authorized By`, `Authorized At`) and a new `Corrections Log` tab (append-only audit trail) — both defined in `COLS` in Config.js.
+- **Part 6:** New `Corrections.js` with 3 API endpoints:
+  - `bookings_for_date` — returns bookings for a date with `Effective Pax` (Corrected Pax if set, else Customer Count).
+  - `save_correction` — writes a correction to Bookings + appends an entry to Corrections Log.
+  - `authorize_day` — marks all bookings on a date as Authorized.
+  - All three tested successfully against the live deployment.
 
 ---
 
