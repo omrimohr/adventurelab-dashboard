@@ -332,6 +332,11 @@ input,select,textarea{font-family:inherit;}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
       Reviews
     </div>
+    <div class="sidebar-section">Finanzas</div>
+    <div class="sidebar-item" data-page="facturacion" onclick="navTo('facturacion',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      Facturación
+    </div>
     <div class="sidebar-divider"></div>
     <div class="sidebar-conn" id="sb-upd">—</div>
   </div>
@@ -419,6 +424,50 @@ input,select,textarea{font-family:inherit;}
         <div id="kpi-detail-content"></div>
       </div>
 
+      <!-- FACTURACIÓN -->
+      <div class="page" id="page-facturacion">
+        <div class="topbar">
+          <div class="topbar-left">
+            <div class="topbar-title">Facturación</div>
+            <div class="topbar-sub" id="fact-sub">QBO — Delayed Charges</div>
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-btn" onclick="loadFacturacion()" title="Actualizar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Date selector -->
+        <div class="month-bar">
+          <button class="icon-btn" onclick="factChangeDate(-1)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <input type="date" id="fact-date" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--white);font-size:13px;font-weight:600;padding:5px 10px;text-align:center;" onchange="loadFacturacion()">
+          <button class="icon-btn" onclick="factChangeDate(1)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+
+        <!-- Action bar -->
+        <div class="section" style="padding-bottom:0">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn-approve enabled" id="fact-btn-build" onclick="factBuild()" style="font-size:12px;padding:8px 16px;">📦 Generar staging</button>
+            <button class="btn-approve enabled" id="fact-btn-comm" onclick="factCommApprove()" style="font-size:12px;padding:8px 16px;background:var(--amber);color:#1a1200;">✓ Aprobar Comercial</button>
+            <button class="btn-approve enabled" id="fact-btn-admin" onclick="factAdminApprove()" style="font-size:12px;padding:8px 16px;background:var(--teal);color:#0a1a18;">✓ Aprobar Admin</button>
+            <button class="btn-approve enabled" id="fact-btn-post" onclick="factPostQBO()" style="font-size:12px;padding:8px 16px;background:var(--green);color:#001a0a;">🚀 Enviar a QBO</button>
+          </div>
+        </div>
+
+        <!-- Summary row -->
+        <div class="section" style="padding-top:8px">
+          <div id="fact-summary" style="display:none;"></div>
+        </div>
+
+        <!-- Invoice list -->
+        <div id="fact-list" style="padding:0 0 16px"></div>
+      </div>
+
     </div><!-- #screen -->
 
     <!-- BOTTOM NAV (mobile) -->
@@ -435,6 +484,10 @@ input,select,textarea{font-family:inherit;}
       <button class="nav-btn" data-page="registro" onclick="navTo('registro',this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Registro
+      </button>
+      <button class="nav-btn" data-page="facturacion" onclick="navTo('facturacion',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Facturación
       </button>
     </nav>
   </div><!-- #main -->
@@ -1192,6 +1245,244 @@ async function submitReview(){await submitForm('review',{date:document.getElemen
 // ── TOAST ───────────────────────────────────────────
 let toastTimer;
 function showToast(msg,type='info'){const t=document.getElementById('toast');t.textContent=msg;t.className='show '+type;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.className='';},2800);}
+
+// ── FACTURACIÓN ─────────────────────────────────────
+let factCurrentDate = new Date().toISOString().substring(0,10);
+let factData = null;
+
+function loadFacturacion(){
+  const dateStr = document.getElementById('fact-date').value || factCurrentDate;
+  factCurrentDate = dateStr;
+  renderFactSkeleton();
+  loadFactData(dateStr);
+}
+
+function renderFactSkeleton(){
+  document.getElementById('fact-list').innerHTML='<div style="padding:16px"><div class="skeleton" style="height:80px;border-radius:12px;margin-bottom:8px;"></div><div class="skeleton" style="height:80px;border-radius:12px;margin-bottom:8px;"></div><div class="skeleton" style="height:80px;border-radius:12px;"></div></div>';
+}
+
+async function loadFactData(dateStr){
+  try {
+    const r = await apiCall('qbo_staging_for_date', {date: dateStr});
+    factData = r;
+    renderFacturacion(r);
+    setFactButtons(r);
+  } catch(e) {
+    document.getElementById('fact-list').innerHTML='<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-text">Error de conexión</div></div>';
+  }
+}
+
+function setFactButtons(r){
+  const s = r.summary || {};
+  const cnt = r.count || 0;
+  const opsOk  = s.ops_approved    && s.ops_approved.split('/')[0] === String(cnt);
+  const commOk = s.comm_approved   && s.comm_approved.split('/')[0] === String(cnt);
+  const admOk  = s.admin_approved  && s.admin_approved.split('/')[0] === String(cnt);
+  const qboOk  = s.qbo_posted      && s.qbo_posted.split('/')[0] === String(cnt);
+
+  const btnComm = document.getElementById('fact-btn-comm');
+  const btnAdmin= document.getElementById('fact-btn-admin');
+  const btnPost = document.getElementById('fact-btn-post');
+
+  btnComm.disabled  = !opsOk;
+  btnComm.className = opsOk ? 'btn-approve enabled' : 'btn-approve approved';
+  btnComm.textContent = commOk ? '✓ Comercial ✓' : '✓ Aprobar Comercial';
+
+  btnAdmin.disabled = !(opsOk && commOk);
+  btnAdmin.className= (opsOk && commOk) ? 'btn-approve enabled' : 'btn-approve approved';
+  btnAdmin.textContent = admOk ? '✓ Admin ✓' : '✓ Aprobar Admin';
+
+  btnPost.disabled  = !admOk;
+  btnPost.className = admOk ? 'btn-approve enabled' : 'btn-approve approved';
+  btnPost.textContent = qboOk ? '✓ Enviado ✓' : '🚀 Enviar a QBO';
+}
+
+function renderFacturacion(r){
+  const el = document.getElementById('fact-list');
+  if(!r.invoices || r.invoices.length === 0){
+    el.innerHTML='<div class="empty-state" style="margin-top:20px;"><div class="empty-icon">📋</div><div class="empty-text">Sin facturas para este día</div><div class="empty-sub">Usa "Generar staging" para crear las facturas</div></div>';
+    document.getElementById('fact-summary').style.display='none';
+    return;
+  }
+
+  const s = r.summary || {};
+  const summaryEl = document.getElementById('fact-summary');
+  summaryEl.style.display='block';
+  summaryEl.innerHTML=`
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-val">${r.count}</div><div class="stat-lbl">Afiliados</div></div>
+    <div class="stat-card"><div class="stat-val teal">${fmtMXN(s.total_net||0)}</div><div class="stat-lbl">Total neto</div></div>
+    <div class="stat-card"><div class="stat-val">${s.ops_approved||'0/0'}</div><div class="stat-lbl">Ops ✓</div></div>
+  </div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:11px;">
+    <span class="pill ${s.comm_approved&&s.comm_approved==r.count+'/0'?'':'p-muted'}">Comercial: ${s.comm_approved||'0/0'}</span>
+    <span class="pill ${s.admin_approved&&s.admin_approved==r.count+'/0'?'':'p-muted'}">Admin: ${s.admin_approved||'0/0'}</span>
+    <span class="pill ${s.qbo_posted&&s.qbo_posted==r.count+'/0'?'':'p-muted'}">QBO: ${s.qbo_posted||'0/0'}</span>
+  </div>`;
+
+  el.innerHTML = r.invoices.map((inv, i) => renderInvoiceRow(inv, i)).join('');
+}
+
+function renderInvoiceRow(inv, idx){
+  const ops   = String(inv['Ops Approved']||'').toUpperCase() === 'Y';
+  const comm = String(inv['Commercial Approved']||'').toUpperCase() === 'Y';
+  const adm  = String(inv['Admin Approved']||'').toUpperCase() === 'Y';
+  const qbo  = String(inv['QBO Posted']||'').toUpperCase() === 'Y';
+  const err  = inv['Error'];
+
+  const lines = Array.isArray(inv['Booking Lines']) ? inv['Booking Lines'] : [];
+  const totalGross = lines.reduce((s,l)=>s+n(l.gross),0);
+  const totalComm  = lines.reduce((s,l)=>s+n(l.commission),0);
+  const totalIva   = lines.reduce((s,l)=>s+n(l.iva),0);
+  const totalNet   = lines.reduce((s,l)=>s+n(l.net),0);
+
+  return`
+  <div style="margin:8px 16px;border-radius:12px;overflow:hidden;border:1px solid ${err?'rgba(242,92,84,.3)':qbo?'rgba(62,207,142,.2)':adm?'rgba(64,217,200,.15)':'var(--border)'};background:var(--bg2);">
+    <div style="padding:12px 14px;cursor:pointer;" onclick="factToggleDetail(${idx})">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${inv['Affiliate']||'—'}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:1px;">${lines.length} booking${lines.length!==1?'s':''} · Gross ${fmtMXN(totalGross)}</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0;">
+          ${approvalBadge('Ops', ops, qbo)}
+          ${approvalBadge('Com', comm, qbo)}
+          ${approvalBadge('Adm', adm, qbo)}
+          ${qbo ? `<span class="pill p-green">QBO</span>` : ''}
+          ${err  ? `<span class="pill p-red" title="${err}">Error</span>` : ''}
+        </div>
+        <span class="chevron" id="fc-${idx}">▾</span>
+      </div>
+    </div>
+    <div id="fcd-${idx}" style="display:none;border-top:1px solid var(--border);padding:10px 14px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:10px;color:var(--muted);">Gross</div>
+          <div style="font-size:15px;font-weight:700;color:var(--white);">${fmtMXN(totalGross)}</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:10px;color:var(--muted);">Comisión</div>
+          <div style="font-size:15px;font-weight:700;color:var(--amber);">${fmtMXN(totalComm)}</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:10px;color:var(--muted);">IVA</div>
+          <div style="font-size:15px;font-weight:700;color:var(--muted);">${fmtMXN(totalIva)}</div>
+        </div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:8px 10px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;color:var(--muted);">Neto a facturar</span>
+          <span style="font-size:16px;font-weight:700;color:var(--teal);">${fmtMXN(totalNet)}</span>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Detalle bookings</div>
+      ${lines.map(l=>`
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:11px;">
+          <span style="color:var(--white);">${l.tour_name||'—'} · ${l.pax} pax</span>
+          <span style="color:var(--teal);">${fmtMXN(l.net)}</span>
+        </div>`).join('')}
+      ${inv['Affiliate Shortname'] ? `<div style="font-size:10px;color:var(--muted);margin-top:6px;">Shortname: ${inv['Affiliate Shortname']}</div>` : ''}
+      ${err ? `<div style="font-size:11px;color:var(--red);margin-top:6px;padding:6px 8px;background:var(--red-bg);border-radius:6px;">⚠️ ${err}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function approvalBadge(label, done, qboDone){
+  if(qboDone) return `<span class="pill p-muted" style="opacity:.4">${label}</span>`;
+  return `<span class="pill ${done?'p-green':'p-muted'}">${label}${done?' ✓':''}</span>`;
+}
+
+function factToggleDetail(idx){
+  const el = document.getElementById('fcd-'+idx);
+  const chev = document.getElementById('fc-'+idx);
+  if(!el) return;
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  if(chev) chev.style.transform = open ? '' : 'rotate(180deg)';
+}
+
+function factChangeDate(dir){
+  const d = new Date(factCurrentDate);
+  d.setDate(d.getDate() + dir);
+  factCurrentDate = d.toISOString().substring(0,10);
+  document.getElementById('fact-date').value = factCurrentDate;
+  loadFacturacion();
+}
+
+async function factBuild(){
+  const btn = document.getElementById('fact-btn-build');
+  btn.disabled = true; btn.textContent = 'Generando...';
+  try {
+    const r = await apiCall('qbo_build', {date: factCurrentDate});
+    if(r.status === 'ok') {
+      showToast(`${r.invoices_created} facturas creadas`, 'ok');
+      loadFactData(factCurrentDate);
+    } else {
+      showToast(r.message || 'Error', 'err');
+    }
+  } catch(e) { showToast('Error', 'err'); }
+  finally { btn.disabled = false; btn.textContent = '📦 Generar staging'; }
+}
+
+async function factCommApprove(){
+  const btn = document.getElementById('fact-btn-comm');
+  btn.disabled = true; btn.textContent = 'Aprobando...';
+  try {
+    const r = await apiCall('qbo_approve_date', {date: factCurrentDate, approved_by: 'Omri'});
+    if(r.status === 'ok' || r.status === 'partial') {
+      showToast(`Comercial aprobado: ${r.approved} factura(s)`, 'ok');
+      loadFactData(factCurrentDate);
+    } else {
+      showToast(r.message || 'Error', 'err');
+    }
+  } catch(e) { showToast('Error', 'err'); }
+  finally { btn.disabled = false; }
+}
+
+async function factAdminApprove(){
+  const btn = document.getElementById('fact-btn-admin');
+  btn.disabled = true; btn.textContent = 'Aprobando...';
+  try {
+    const r = await apiCall('admin_approve_day', {date: factCurrentDate, approved_by: 'Omri'});
+    if(r.status === 'ok' || r.status === 'partial') {
+      const msg = r.reasons && r.reasons.length > 0
+        ? `Admin aprobado: ${r.updated} · ${r.reasons.length} omitidos`
+        : `Admin aprobado: ${r.updated} factura(s)`;
+      showToast(msg, r.status === 'ok' ? 'ok' : 'info');
+      loadFactData(factCurrentDate);
+    } else {
+      showToast(r.message || 'Error', 'err');
+    }
+  } catch(e) { showToast('Error', 'err'); }
+  finally { btn.disabled = false; }
+}
+
+async function factPostQBO(){
+  const btn = document.getElementById('fact-btn-post');
+  btn.disabled = true; btn.textContent = 'Enviando...';
+  try {
+    const r = await apiCall('post_to_qbo', {date: factCurrentDate});
+    if(r.status === 'ok' || r.status === 'partial') {
+      showToast(`Enviado: ${r.posted} factura(s)`, 'ok');
+      loadFactData(factCurrentDate);
+    } else {
+      showToast(r.message || 'Error', 'err');
+    }
+  } catch(e) { showToast('Error', 'err'); }
+  finally { btn.disabled = false; }
+}
+
+// Override navTo to handle facturacion date init
+const _origNavTo = navTo;
+function navTo(page, el){
+  if(page === 'facturacion' && factData === null){
+    const td = new Date().toISOString().substring(0,10);
+    document.getElementById('fact-date').value = td;
+    factCurrentDate = td;
+    loadFacturacion();
+  }
+  _origNavTo(page, el);
+}
 
 // ── INIT ────────────────────────────────────────────
 loadAll();
