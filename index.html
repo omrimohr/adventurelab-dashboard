@@ -190,7 +190,7 @@ input,select,textarea{font-family:inherit;}
 .tour-detail.open{display:block;}
 .td-row{display:flex;justify-content:space-between;margin-bottom:3px;}
 .td-row:last-child{margin-bottom:0;}
-.td-lbl{color:var(--muted);}
+.td-lbl{color:var(--muted);min-width:80px;flex-shrink:0;}
 .td-val{color:var(--white);text-align:right;max-width:180px;overflow:hidden;text-overflow:ellipsis;}
 .tour-notes{font-size:10px;color:var(--muted);margin-top:6px;padding:6px 8px;background:var(--bg4);border-radius:6px;line-height:1.5;}
 
@@ -975,7 +975,7 @@ function buildDayCard(day,cardId,idx){
       <div class="day-stats">
         <div class="day-stat"><div class="day-stat-val">${day['Total Tours']||0}</div><div class="day-stat-lbl">Tours</div></div>
         <div class="day-stat"><div class="day-stat-val">${day['Total Pax']||0}</div><div class="day-stat-lbl">Pax</div></div>
-        <div class="day-stat"><div class="day-stat-val" style="color:var(--teal)">${fmtMXN(day['Revenue (MXN)']||0)}</div><div class="day-stat-lbl">Ingreso</div></div>
+        <div class="day-stat"><div class="day-stat-val" style="color:var(--teal)">${fmtMXN(day['Revenue (MXN)']||0)}</div><div class="day-stat-lbl" title="Net (después de comisión)">Ingreso</div></div>
       </div>
       <div class="day-right">
         ${urgentHtml}${flagHtml}${statusPill}
@@ -1039,7 +1039,9 @@ function getTourFlags(t){
   if(t['Flag']&&t['Flag']!=='—'){
     String(t['Flag']).split('|').forEach(f=>{const tf=f.trim();if(tf)flags.push({label:tf,type:'err'});});
   }
-  return flags;
+  // Deduplicate by label (custom Flag text may overlap with auto-detected conditions)
+  const seen={};
+  return flags.filter(f=>{if(seen[f.label])return false;seen[f.label]=true;return true;});
 }
 
 function toggleDay(idx){
