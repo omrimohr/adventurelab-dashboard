@@ -65,9 +65,10 @@ Read this file at the start of every session before doing anything.
 - [x] QBO Staging layer (Phase 1) — complete
 - [x] clasp local dev workflow — set up
 - [x] GitHub repo connected to Claude Code
-- [ ] Owner commercial dashboard — in progress
-- [ ] QBO Phase 2 (admin approval screen) — pending
-- [ ] QBO Phase 3 (send to QBO) — pending
+- [x] QBO Phase 2 — Schema + backend (Ops/Commercial/Admin approval chain) — COMPLETE
+- [x] Owner commercial dashboard — Facturación page with staging/approval/QBO workflow — COMPLETE
+- [ ] QBO Phase 3 (send to QBO API) — pending
+- [ ] Commercial corrections UI (edit gross/net/commission per booking) — pending
 - [ ] Coordinator limited view (Edder & Jesus) — future
 
 ### Session log (2026-06-11)
