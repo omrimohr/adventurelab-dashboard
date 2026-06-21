@@ -1474,7 +1474,7 @@ async function factPostQBO(){
 
 // Override navTo to handle facturacion date init
 const _origNavTo = navTo;
-function navTo(page, el){
+navTo = function(page, el){
   if(page === 'facturacion' && factData === null){
     const td = new Date().toISOString().substring(0,10);
     document.getElementById('fact-date').value = td;
@@ -1482,7 +1482,7 @@ function navTo(page, el){
     loadFacturacion();
   }
   _origNavTo(page, el);
-}
+};
 
 // ── INIT ────────────────────────────────────────────
 loadAll();
