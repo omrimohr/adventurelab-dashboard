@@ -12,6 +12,39 @@ Read this file at the start of every session before doing anything.
 
 ---
 
+## AI Coding Tools — Routing Rules
+
+Two AI tools are used for development. Both MUST read this file at the start of every session and update it at the end.
+
+### Claude Code (careful, step-by-step)
+
+Use for:
+- QBO API integration (OAuth, delayed charges, payments)
+- Revenue calculation logic
+- Bug fixes in existing scripts
+- Database schema changes (new columns, new tabs)
+- Approval workflow logic
+- Anything where a mistake could corrupt data or break the pipeline
+
+### MiniMax (fast execution)
+
+Use for:
+- Dashboard UI (HTML/CSS/JS)
+- Frontend styling and layout
+- Simple API endpoints that only read data
+- Documentation updates
+- Creating new static files
+- Refactoring code that doesn't change logic
+
+### Sync Rule
+
+- Both tools work on the same codebase at `D:\adventure-lab`
+- CONTEXT.md is the bridge — always update it after every session
+- Review changes before pushing (`git diff` for dashboard, review code for apps-script)
+- Never push from both tools simultaneously
+
+---
+
 ## This Workspace Has Two Projects
 
 ### 1. `dashboard/` — Frontend (GitHub)
@@ -216,7 +249,7 @@ FareHarbor  →  Webhook.js  →  Google Sheets (database)
 
 ### Known issues
 - Permission prompt fatigue: every new deployment = new URL = fresh approvals. No permanent fix yet.
-- `qbo_debug_date` and `qbo_full_test` debug actions still in API.js. **`qbo_full_test` is destructive** — it deletes every row in QBO Staging (`deleteRows(2, ...)`) before rebuilding one date. Safe to remove anytime; flagged but not yet removed.
+- `qbo_debug_date` (read-only, harmless) still in API.js. `qbo_full_test` (destructive — deleted all QBO Staging rows on every call) was **removed** 2026-06-21, deployed @35.
 
 ### Session log (2026-06-21, continued) — QBO Phase 2 verification + Phase 3 logic
 **Verified Part 2 (admin approval) end-to-end** on real staging data (2026-06-20), reverting all test values afterward:
