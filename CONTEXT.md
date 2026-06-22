@@ -65,9 +65,10 @@ Read this file at the start of every session before doing anything.
 - [x] QBO Staging layer (Phase 1) — complete
 - [x] clasp local dev workflow — set up
 - [x] GitHub repo connected to Claude Code
-- [x] QBO Phase 2 — Schema + backend (Ops/Commercial/Admin approval chain) — COMPLETE
+- [x] QBO Phase 2 — Schema + backend (Ops/Commercial/Admin approval chain) — COMPLETE, verified end-to-end (admin_approve_day tested both pass and block cases)
 - [x] Owner commercial dashboard — Facturación page with staging/approval/QBO workflow — COMPLETE
-- [ ] QBO Phase 3 (send to QBO API) — pending
+- [x] QBO Phase 3 logic (customer/product matching, Invoice posting, payment recording) — COMPLETE, code only — see "Pending before real use" below
+- [ ] QBO OAuth2 connection (real credentials) — pending, deliberately not done yet
 - [ ] Commercial corrections UI (edit gross/net/commission per booking) — pending
 - [ ] Coordinator limited view (Edder & Jesus) — future
 
@@ -92,6 +93,50 @@ Read this file at the start of every session before doing anything.
   - `save_correction` — writes a correction to Bookings + appends an entry to Corrections Log.
   - `authorize_day` — marks all bookings on a date as Authorized.
   - All three tested successfully against the live deployment.
+
+### Session log (2026-06-21) — QBO Phase 2: Schema, backend + Facturación UI
+**Files changed:** Config.js, QBO.js, API.js, dashboard/index.html
+
+**Config.js changes:**
+- Added Admin/QBO columns to BOOKINGS: `Admin Approved`, `Admin Approved By`, `Admin Approved At`, `QBO Posted`, `QBO Posted At`, `QBO Reference`
+- Rewrote QBO_STAGING schema with full approval chain: `Affiliate Shortname`, `Booking Lines JSON`, `Ops Approved/By/At`, `Commercial Approved/By/At`, `Admin Approved/By/At`, `QBO Posted/At`, `QBO Delayed Charge ID`
+
+**QBO.js changes:**
+- Rewrote `buildQBOStagingForDate()` — now reads shortname from Raw JSON, uses Effective (corrected) values, populates Ops + Commercial approval flags from Bookings columns, new schema
+- Added `getQBOStagingForDate(dateStr)` — returns staging rows for a date with summary stats
+- Added `adminApproveDay(dateStr, approvedBy)` — enforces Ops + Commercial must both be Y before Admin approval
+- Added `postDelayedChargeToQBO(stagingRow)` — Phase 3 skeleton (logs placeholder, no QBO API calls yet)
+- Added `postQBODate(dateStr)` — batch poster
+- Added `findOrCreateQBOCustomer(affiliateName, shortname)` — Phase 3 skeleton
+- Added `findOrCreateQBOProduct(tourName, itemPK)` — Phase 3 skeleton
+- Added `getQBOToken()`, `getQBORealmId()`, `qboApiRequest()` — QBO auth infrastructure
+- Added `addQBOStagingColumns()` — one-time migration for existing QBO Staging sheets
+- Updated `approveQBOInvoice()` — now writes to `Commercial Approved` columns (not old generic `Status`/`Approved By`/`Approved At`)
+- Updated `getQBOStagedInvoices()` — parses `Booking Lines JSON` column
+- **NOTE:** `approveQBODate()` still writes to `Status = approved` — it should write to `Commercial Approved` columns. The old `Status`-based approve workflow is deprecated; use `qbo_approve_date` endpoint which calls `approveQBOInvoice()` which correctly writes to commercial columns.
+
+**API.js changes:**
+- Added new endpoints documented in header: `qbo_staging_for_date`, `admin_approve_day`, `post_to_qbo`, `qbo_status`
+- Added `qbo_staging_for_date` case → calls `getQBOStagingForDate()`
+- Added `admin_approve_day` case → calls `adminApproveDay()`
+- Added `post_to_qbo` case → calls `postQBODate()`
+- Added `qbo_status` case → calls `getQBOStagingForDate()`
+
+**dashboard/index.html changes:**
+- Added "Finanzas" sidebar section with "Facturación" nav item
+- Added "Facturación" bottom nav button (mobile)
+- Added full `#page-facturacion` page with: date picker, 4 action buttons (Generar/Aprobar Comercial/Aprobar Admin/Enviar QBO), summary stats, expandable invoice rows
+- Added JS: `loadFacturacion()`, `loadFactData()`, `renderFacturacion()`, `renderInvoiceRow()`, `factToggleDetail()`, `factChangeDate()`, `factBuild()`, `factCommApprove()`, `factAdminApprove()`, `factPostQBO()`
+- Button state logic: Comercial disabled until Ops approved; Admin disabled until Ops+Comercial approved; QBO disabled until Admin approved (all enforced on backend too)
+
+**One-time migrations to run after clasp push:**
+1. Run `addMissingBookingsColumns()` in Apps Script editor → adds new Admin/QBO columns to Bookings
+2. Run `addQBOStagingColumns()` in Apps Script editor → adds new columns to QBO Staging sheet
+
+**PENDING (Phase 3):**
+- QBO OAuth2 auth not configured — `postDelayedChargeToQBO()` and `findOrCreateQBOCustomer/Product()` are skeletons
+- `approveQBODate()` still uses old `Status=approved` pattern — deprecated, use `qbo_approve_date` endpoint instead
+- Owner commercial dashboard corrections UI (editing gross/net/commission per booking) not yet in dashboard
 
 ---
 
@@ -127,3 +172,76 @@ FareHarbor  →  Webhook.js  →  Google Sheets (database)
 - When giving terminal commands, always specify which folder to run them in.
 - On Windows, use `cd /d D:\path\to\folder` to switch drives.
 - The clasp `.clasp.json` must be inside `apps-script/` — not in the user home folder.
+
+
+---
+
+## Session Log — 2026-06-21
+
+### What was done
+- Debugged why `qbo_build` returned "No booked bookings" for dates that had confirmed bookings in `bookings_for_date`
+- **Root cause:** `buildQBOStagingForDate()` was capped at `CFG.LIMITS.API_MAX_ROWS = 500` rows, but the Bookings sheet has 1283 rows — June 2026 bookings were past row 500
+- **Fix:** Changed `readSheetAsObjects(ss, BOOKINGS, CFG.LIMITS.API_MAX_ROWS)` → `readSheetAsObjects(ss, BOOKINGS, bSheet.getLastRow())` in `buildQBOStagingForDate()`; same fix for Tours read
+- **Bonus find + fix:** Pre-existing CFG.TZ bug — was `'America/Mexico_City'` (UTC-6) but sheet timezone is `'America/Cancun'` (UTC-5). This caused all dates read through `readSheetAsObjects` to appear one day earlier than actual. Fixed to `'America/Cancun'`
+- Added `qbo_debug_date` and `qbo_full_test` debug actions to API.js (for one-shot testing, one URL = one approval)
+- Verified: `qbo_full_test` for 2026-06-20 now returns 5 correct affiliate invoices with accurate dates
+
+### Deployments
+| Version | URL suffix | Notes |
+|---------|-----------|-------|
+| @27 (current) | `AKfycbxR9uAlteCmJF_dAfR07zTiC9d8iCbmxRUebpn_Yf8w6OJJljsDkzODs6XqwJ7Q63nH1w` | Fix CFG.TZ to America/Cancun; full sheet reads |
+| @26 | `AKfycbxNiM2p25xHq1zvFx6EkAHcEvRjJEuiEFzdw0p4D12n1RV7HfQ2juKddJDVt_lh401qxg` | Add qbo_full_test action |
+| @25 | `AKfycbzhE1RkLsuJeIzIIkGtCmYcB7scdQ3qzYfBbe3ngDJvf4jz4FlwuPE9WEbghC-YFuHY6w` | Fix row cap in buildQBOStagingForDate |
+| @24 | `AKfycbxnviU6StJ4lq9CrVie8kG1vqXjxy0W2N8jKq_XAsiOPIZunTGyrfodIKGdC0Yr67_LNQ` | (earlier work) |
+
+### Current state
+- Dashboard: `https://omrimohr.github.io/adventurelab-dashboard/` (API URL updated to @27)
+- Apps Script URL: `https://script.google.com/macros/s/AKfycbxR9uAlteCmJF_dAfR07zTiC9d8iCbmxRUebpn_Yf8w6OJJljsDkzODs6XqwJ7Q63nH1w/exec`
+- QBO Staging: 5 affiliate invoices for 2026-06-20 ( Cliente Directo, Hotel Amainah, The Yak Lake House, Adventure Lab PDV Yak, Hotel Aires)
+- CFG.TZ fixed to 'America/Cancun' (was 'America/Mexico_City' — caused all dates to appear 1 day early)
+- buildQBOStagingForDate now reads full sheet (not capped at 500 rows)
+
+### Dashboard fixes (2026-06-21)
+- `getTourFlags()`: added deduplication by label — flags could appear twice if custom Flag text overlapped with auto-detected conditions
+- `.td-lbl`: added `min-width:80px; flex-shrink:0` — fixed field titles drifting far from values on wide screens
+- "Ingreso" label: added tooltip "(Net después de comisión)" — clarifies it = Net (MXN), what AL receives after paying affiliate
+
+### About "Ingreso" (Revenue field)
+- = sum of **Net (MXN)** from all BOOKED bookings per tour/day
+- Formula: Gross (MXN) − Commission (MXN) = Net (MXN)
+- Does NOT include Tax (MXN) or Discount (MXN)
+- Example: Gross 1105, Commission 221 → Ingreso = 884 MXN
+- This is what Adventure Lab keeps; affiliate commission is already deducted
+- Shell permission system requires allowOnce per unique URL — wildcard `*` in settings.local.json does NOT work for query param variations
+
+### Known issues
+- Permission prompt fatigue: every new deployment = new URL = fresh approvals. No permanent fix yet.
+- `qbo_debug_date` and `qbo_full_test` debug actions still in API.js. **`qbo_full_test` is destructive** — it deletes every row in QBO Staging (`deleteRows(2, ...)`) before rebuilding one date. Safe to remove anytime; flagged but not yet removed.
+
+### Session log (2026-06-21, continued) — QBO Phase 2 verification + Phase 3 logic
+**Verified Part 2 (admin approval) end-to-end** on real staging data (2026-06-20), reverting all test values afterward:
+- `adminApproveDay()` correctly sets Admin Approved=Y when Ops + Commercial are both Y.
+- Correctly **blocks** with per-affiliate reasons (e.g. "Hotel Amainah: commercial not approved") when either gate is missing.
+- Found and fixed a real bug along the way: `authorizeDay()`/`commercialApproveDay()` (Corrections.js) wrote to Bookings in a loop without `SpreadsheetApp.flush()` — writes were silently lost across separate web-app requests. Added `flush()` after every multi-row write loop (Corrections.js, QBO.js).
+
+**Researched QBO's API and confirmed: there is no "Delayed Charge" entity in QuickBooks Online's public REST API** (UI-only feature; confirmed via Intuit developer forums). Since our own Ops/Commercial/Admin chain already holds a day before billing, we post a real **Invoice** instead once admin-approved — functionally equivalent, no Delayed-Charge-then-convert step needed.
+
+**Built Parts 4-7 (QBO.js), code-complete but not connected to live QBO:**
+- `findOrCreateQBOCustomer()` — real query/create logic (CompanyName=shortname → DisplayName → create; "Cliente Directo" maps to fixed "Ventas Directas" customer).
+- `findOrCreateQBOProduct()` — real query/create logic (Sku=itemPK → Name=tourName → create as Service item).
+- `findOrCreateQBOCommissionItem()` — find-only (per spec, should already exist in QBO).
+- `postDelayedChargeToQBO()` — rewritten to build and POST a real Invoice (line per booking + commission line with TaxCodeRef), returns `qbo_invoice_id` + `qbo_customer_id`. Stored in the `QBO Delayed Charge ID` column (name kept for compatibility — it actually holds an Invoice ID now, noted in Config.js).
+- `recordQBOPayments()` (new) — for ADV-collected bookings only (cash/card/online), creates one QBO Payment per payment type, linked to the invoice via `LinkedTxn`.
+- `postQBODate()` — rewritten to write results back to the QBO Staging sheet (QBO Customer ID, QBO Posted/At, Invoice ID, Payments Posted/At) instead of just counting.
+- Added `payment_lines_json` + `payments_posted`/`payments_posted_at` columns to QBO_STAGING; `buildQBOStagingForDate()` now populates payment lines from ADV-collected bookings.
+- Added `CFG.QBO` config block (Config.js) — Realm ID, income account, IVA/exempt tax code IDs, commission item name, direct-customer mapping, payment method refs. All blank placeholders until OAuth is connected.
+- All new functions degrade gracefully (`status: 'pending'`) when `qboApiRequest()` has no token — verified live: `post_to_qbo` on a real date returns `posted:0` with a clear per-affiliate "QBO not connected" reason for each, no exceptions.
+- New endpoint: `qbo_migrate_columns` — runs `addQBOStagingColumns()` via API (no need to open the Apps Script editor).
+
+**Deliberately not done:** real QBO OAuth2 connection (Realm ID, access token, tax code IDs, income account ref) — `getQBOToken()` returns null until `QBO_ACCESS_TOKEN` is set in Script Properties. This was explicit scope: build everything except actually connecting.
+
+### Next steps
+1. Connect real QBO OAuth2 credentials (Script Properties: `QBO_ACCESS_TOKEN`, `QBO_REALM_ID`) + fill in `CFG.QBO` tax code / income account IDs once known.
+2. Remove destructive `qbo_full_test` debug action from API.js.
+3. Commercial corrections UI (editing gross/net/commission per booking in Facturación).
+4. Coordinator limited view for Edder & Jesus.
