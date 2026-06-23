@@ -101,7 +101,7 @@ Use for:
 - [x] QBO Phase 2 — Schema + backend (Ops/Commercial/Admin approval chain) — COMPLETE, verified end-to-end (admin_approve_day tested both pass and block cases)
 - [x] Owner commercial dashboard — Facturación page with staging/approval/QBO workflow — COMPLETE
 - [x] QBO Phase 3 logic (customer/product matching, quincena Invoice accumulation, payment recording) — COMPLETE, code only, redesigned 2026-06-22 from daily-invoice to quincena-accumulation model
-- [ ] QBO OAuth2 connection (real credentials) — pending, deliberately not done yet
+- [x] QBO OAuth2 infrastructure (code built, scopes deployed, post_to_qbo tested) — OAuth token exchange BLOCKED by Google redirect interception, see session log 2026-06-22
 - [ ] Commercial corrections UI (edit gross/net/commission per booking) — pending
 - [ ] Coordinator limited view (Edder & Jesus) — future
 
@@ -297,4 +297,46 @@ FareHarbor  →  Webhook.js  →  Google Sheets (database)
 1. Connect real QBO OAuth2 credentials (Script Properties: `QBO_ACCESS_TOKEN`, `QBO_REALM_ID`) + fill in `CFG.QBO` tax code / income account IDs once known.
 2. Commercial corrections UI (editing gross/net/commission per booking in Facturación).
 3. Coordinator limited view for Edder & Jesus.
+
+---
+
+## Session log (2026-06-22) — QBO OAuth2 Connection Attempt (INCOMPLETE)
+
+**Goal:** Connect the Apps Script to QBO Sandbox via OAuth2 so `post_to_qbo` actually sends invoices.
+
+### What worked
+- QBO sandbox company created: Realm ID `9341457328235620`
+- Apps Script deployed with `oauthScopes` in `appsscript.json`: `script.external_request`, `spreadsheets.currentonly`
+- New scopes authorized by running functions directly in Apps Script editor
+- `post_to_qbo` endpoint correctly returns "No admin-approved invoices ready for QBO" (no crashes — logic works)
+- `qbo_debug_staging` endpoint confirmed: staging sheet has 8 rows for 2026-06-20, dates correct, Admin Approved = empty
+
+### What failed — OAuth token exchange
+All redirect-based approaches failed to capture the authorization code:
+
+1. **Apps Script redirect URL** (`https://script.google.com/macros/s/.../exec`) → Google shows an intermediate auth confirmation page BEFORE redirecting, so the code appears in the Google page's URL, not our redirect
+2. **Google OAuth Playground** → "invalid_client" — client ID not recognized because Intuit's app is registered as a web app, not a generic OAuth client
+3. **`localhost:8080/callback` as redirect** → Browser refuses to connect (nothing listening on localhost)
+4. **Browser popup from HTML file** → QBO's popup was blocked or the code capture via `window.location` failed because cross-origin
+5. **Authorization code reuse** → OAuth codes are single-use; reusing old codes gives "Invalid authorization code"
+
+### Root cause of OAuth problem
+Intuit's OAuth flow includes Google's account selection/consent page which loads INSIDE the redirect chain, so the final `?code=XXX` lands on Google's page, not our redirect URI. The Apps Script web app's "authorize" prompt appears AFTER the redirect, not before.
+
+### What was built in Apps Script
+- `exchangeOAuthCode(code)` — exchanges code for token, stores in Script Properties (WORKING but never received a valid code)
+- `qbo_test` endpoint — tests if token is stored, tries to reach QBO API
+- `qbo_debug_staging` endpoint — inspects staging sheet contents
+- All new scopes (UrlFetchApp, Spreadsheets) deployed and authorized
+- `postDayToQBO()` fixed: null guard, Period-based date lookup (timezone-safe), graceful QBO not-connected handling
+
+### Current Apps Script URL
+`https://script.google.com/macros/s/AKfycbwkipk2SgAGeMwtlAP2gRnB7bJw9YymYVrr5IJ-JkhM4A3PFtRHqrsZf5SYw7JZjLhZPg/exec`
+
+### Remaining: how to get the token stored
+Best remaining options to try:
+1. **Intuit's own OAuth2 test tool** — https://developer.intuit.com/app/developer/playground — may have a direct token generation flow
+2. **Manual copy-paste**: Get the code from the browser URL bar manually, paste it to me, I call `exchangeOAuthCode` directly via a new API endpoint
+3. **Ask Intuit community** for the simplest sandbox OAuth2 flow that avoids Google's redirect interception
+4. **Service Account**: more complex but avoids user-based OAuth entirely
 4. Dashboard's Facturación page may still reference the old `qbo_delayed_charge_id`/per-day labels — check `dashboard/index.html`'s JS against the renamed `QBO Invoice ID` column and new `Period` field next time it's touched.
