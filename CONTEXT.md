@@ -100,7 +100,7 @@ Use for:
 - [x] GitHub repo connected to Claude Code
 - [x] QBO Phase 2 — Schema + backend (Ops/Commercial/Admin approval chain) — COMPLETE, verified end-to-end (admin_approve_day tested both pass and block cases)
 - [x] Owner commercial dashboard — Facturación page with staging/approval/QBO workflow — COMPLETE
-- [x] QBO Phase 3 logic (customer/product matching, Invoice posting, payment recording) — COMPLETE, code only — see "Pending before real use" below
+- [x] QBO Phase 3 logic (customer/product matching, quincena Invoice accumulation, payment recording) — COMPLETE, code only, redesigned 2026-06-22 from daily-invoice to quincena-accumulation model
 - [ ] QBO OAuth2 connection (real credentials) — pending, deliberately not done yet
 - [ ] Commercial corrections UI (edit gross/net/commission per booking) — pending
 - [ ] Coordinator limited view (Edder & Jesus) — future
@@ -251,6 +251,26 @@ FareHarbor  →  Webhook.js  →  Google Sheets (database)
 - Permission prompt fatigue: every new deployment = new URL = fresh approvals. No permanent fix yet.
 - `qbo_debug_date` (read-only, harmless) still in API.js. `qbo_full_test` (destructive — deleted all QBO Staging rows on every call) was **removed** 2026-06-21, deployed @35.
 
+### Session log (2026-06-22) — QBO redesign: daily Delayed-Charge model → quincena Invoice accumulation
+**The prompt spec changed** from "one Invoice per affiliate per day" (built 2026-06-21, see entry below) to **one accumulating Invoice per affiliate per quincena** (1st-15th / 16th-end of month), appended to daily, tracked via a `CustomerMemo` marker (`"ABIERTO — Q1 Jun 2026"`). The day-per-invoice functions below are superseded — `postDelayedChargeToQBO()` no longer exists, replaced by `postDayToQBO()`.
+
+**Config.js / Helpers.js:**
+- Added `CFG.QUINCENA_CUTOFF = 15` and `CFG.QBO.OPEN_INVOICE_MARKER = 'ABIERTO'`.
+- Added `getPeriodString(date)` (Helpers.js) — returns `"Q1 Jun 2026"` / `"Q2 Jun 2026"`. Verified live.
+- QBO_STAGING: added `Period`, `Booking PKs` columns; **renamed** `QBO Delayed Charge ID` → `QBO Invoice ID` (renamed the live header cell directly — not a duplicate column; old staging data preserved).
+- BOOKINGS: added `QBO Invoice ID`, `QBO Period` columns (old `QBO Reference` left in place, deprecated/unused).
+- `buildQBOStagingForDate()` now populates `Period` + `Booking PKs` on every staging row.
+
+**QBO.js — new accumulation logic:**
+- `findOrCreateQBOInvoice(qboCustomerId, periodString)` — searches for an open invoice (`CustomerMemo` contains "ABIERTO" + period); if none, counts all invoices (open+closed) for that period to pick the next letter suffix (Q1, Q1b, Q1c...). Returns a memo string for the caller to create with — doesn't create itself, since QBO requires a non-empty `Line[]` on create and only the caller has that day's lines ready.
+- `postDayToQBO(stagingRow)` (replaces `postDelayedChargeToQBO`) — finds/creates the period's invoice, dedupes by scanning existing line `Description`s for `"Booking #<PK>"` (skips already-posted bookings — re-run safe), builds only the new lines, adds one commission line per day (deduped by exact description so re-runs don't double it), then either creates the invoice (if new) or does a sparse update with the **full** existing+new `Line[]` (QBO sparse update doesn't merge sub-arrays).
+- `postQBODate()` now also calls new `markBookingsQBOPosted()` — writes `QBO Posted`/`QBO Invoice ID`/`QBO Period` back onto each individual Bookings row (Part 7 steps 9-10), not just the staging row.
+- `getQBOInvoiceStatus(period)` (new) — groups staging rows by affiliate per period; if QBO is connected, fetches the live invoice to report `open`/`closed` (via the "ABIERTO" marker); otherwise `pending`/`not_created`. New endpoint: `qbo_invoice_status`.
+
+**Tested live, safely, in disconnected mode** (built staging on throwaway test dates 2026-06-16/17/18, force-approved via temporary debug endpoints, ran `post_to_qbo` and `qbo_invoice_status`, confirmed graceful `pending`/`not_created` results with clear per-affiliate reasons, no exceptions — then deleted all test data and removed the debug endpoints). Real production staging data (2026-06-20 manual, 2026-06-21 from this morning's `morningRun` cron) was left untouched throughout.
+
+**Still pending (unchanged):** real QBO OAuth2 connection. `recordQBOPayments()` reused as-is (already targets whatever invoice ID it's given, so works the same under accumulation).
+
 ### Session log (2026-06-21, continued) — QBO Phase 2 verification + Phase 3 logic
 **Verified Part 2 (admin approval) end-to-end** on real staging data (2026-06-20), reverting all test values afterward:
 - `adminApproveDay()` correctly sets Admin Approved=Y when Ops + Commercial are both Y.
@@ -275,6 +295,6 @@ FareHarbor  →  Webhook.js  →  Google Sheets (database)
 
 ### Next steps
 1. Connect real QBO OAuth2 credentials (Script Properties: `QBO_ACCESS_TOKEN`, `QBO_REALM_ID`) + fill in `CFG.QBO` tax code / income account IDs once known.
-2. Remove destructive `qbo_full_test` debug action from API.js.
-3. Commercial corrections UI (editing gross/net/commission per booking in Facturación).
-4. Coordinator limited view for Edder & Jesus.
+2. Commercial corrections UI (editing gross/net/commission per booking in Facturación).
+3. Coordinator limited view for Edder & Jesus.
+4. Dashboard's Facturación page may still reference the old `qbo_delayed_charge_id`/per-day labels — check `dashboard/index.html`'s JS against the renamed `QBO Invoice ID` column and new `Period` field next time it's touched.
