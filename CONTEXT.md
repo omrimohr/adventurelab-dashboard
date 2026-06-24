@@ -101,7 +101,7 @@ Use for:
 - [x] QBO Phase 2 — Schema + backend (Ops/Commercial/Admin approval chain) — COMPLETE, verified end-to-end (admin_approve_day tested both pass and block cases)
 - [x] Owner commercial dashboard — Facturación page with staging/approval/QBO workflow — COMPLETE
 - [x] QBO Phase 3 logic (customer/product matching, quincena Invoice accumulation, payment recording) — COMPLETE, code only, redesigned 2026-06-22 from daily-invoice to quincena-accumulation model
-- [x] QBO OAuth2 — CONNECTED and posting successfully to the sandbox as of 2026-06-23/24 (see session log below). The earlier "Google redirect interception" blocker turned out to be a different bug (missing `action=` on redirect), now fixed.
+- [x] QBO OAuth2 — CONNECTED and posting successfully to the sandbox, full real approval chain verified end-to-end on real bookings (2026-06-23: 7/7 affiliates posted, 0 errors) as of 2026-06-24. The earlier "Google redirect interception" blocker turned out to be a different bug (missing `action=` on redirect), now fixed. A separate DocNumber-too-long bug (see session log below) also fixed.
 - [ ] Commercial corrections UI (edit gross/net/commission per booking) — pending
 - [ ] Coordinator limited view (Edder & Jesus) — future
 
@@ -366,4 +366,78 @@ Best remaining options to try:
 1. Add a time-driven trigger to auto-refresh the QBO access token (e.g. every 45 min) so it doesn't go stale between sessions.
 2. When ready for production: request Production keys from Intuit, swap `CLIENT_ID`/`CLIENT_SECRET` and the API host back to `quickbooks.api.intuit.com`, re-pick `INCOME_ACCOUNT_REF`/tax codes/payment method refs with the accountant for the real company, redo OAuth against the real company.
 3. Commercial corrections UI (editing gross/net/commission per booking in Facturación).
-4. Coordinator limited view for Edder & Jesus.
+ 4. Coordinator limited view for Edder & Jesus.
+
+---
+
+## Session log (2026-06-23) — TaxCode auto-create, sandbox fully verified
+
+**Goal:** Fix the `IVA 16%` tax code creation (was failing silently), then verify the full post flow works end-to-end with the new booking-line fields.
+
+### What was built / changed
+
+**QBO.js — `postDayToQBO()` line fields (new description + DocNumber + ServiceDate):**
+- `Description`: `'Booking #' + l.booking_pk + ' — ' + l.pax + 'px — ' + affiliate + ' (' + date + ')'` (removed tour name, added pax + affiliate)
+- `ServiceDate: date` on every booking line AND commission line
+- `DocNumber`: `period.replace(' ','-') + '-' + affiliate.substring(0,12)` on invoice create + sparse update
+- `qboApiRequest()` error logging improved: now logs real QBO error code + message instead of silently returning null
+
+**QBO.js — `resolveOrCreateIVATaxCode()` (new function):**
+- Looks up `IVA 16%` by exact name — returns cached ID if already resolved
+- If not found: queries `TaxAgency`, then calls `POST /v3/company/{realmId}/taxservice/taxcode` (the correct Intuit-documented endpoint — NOT `/taxrate` + `/taxcode`)
+- Body: `{ TaxCode: 'IVA 16%', TaxRateDetails: [{ TaxRateName: 'IVA 16%', RateValue: 16, TaxApplicableOn: 'Sales', TaxAgencyId: <agency_id> }] }`
+- Caches resolved ID in `QBO_IVA_TAX_CODE_ID` Script Property
+- IVA booking lines now call `resolveOrCreateIVATaxCode()` instead of using `CFG.QBO.TAX_CODE_IVA`; exempt lines unchanged
+
+**QBO.js — `findQBOFirstTaxAgency()` (new helper):**
+- Queries `SELECT * FROM TaxAgency MAXRESULTS 1` — needed because TaxService requires a TaxAgencyId
+
+**API.js — new endpoints:**
+- `qbo_list_tax_codes` — `SELECT * FROM TaxCode`, returns full list with IDs
+- `qbo_list_tax_agencies` — `SELECT * FROM TaxAgency`, returns list
+- `qbo_resolve_iva_tax_code` — calls resolver; `&force=true` clears cache first
+
+### What was verified live
+
+- Tax agencies in sandbox: Arizona Dept. of Revenue (id 1), Board of Equalization (id 2) — used id 1
+- `qbo_resolve_iva_tax_code&force=true` → created `IVA 16%` in sandbox, TaxCode id=4, TaxRate id=4, 16%, active
+- `IVA 16%` confirmed in `qbo_list_tax_codes` (count went from 5 → 6)
+- QBO token cache: still valid from earlier session — refreshed once (`qbo_refresh` returned ok)
+- All 6 staging rows for 2026-06-20 already posted in prior session (QBO Invoice IDs 157/155/146/159/147/161 confirmed) — no re-post needed
+
+### Production note (important)
+- Sandbox TaxAgency is "Arizona Dept. of Revenue" — wrong for MX. Production QBO company will need SAT (Servicio de Administración Tributaria) as the agency. Either pre-create `IVA 16%` in production QBO (so resolver finds it), or update `findQBOFirstTaxAgency()` to use the correct MX agency ID.
+- Tax rates and codes are company-specific — re-confirm with accountant before production.
+- Token still expires every 60 min — auto-refresh trigger still pending.
+
+### Current Apps Script URL
+`https://script.google.com/macros/s/AKfycbxnEEtwt_cysahiCnd1PQvXJdmaq19obsvs5EDJIm8DvJv9PjLFmCFwnXLhoT_qcB2yHA/exec` (updated 2026-06-24 — the previous URL's deployment was deleted; this is also what `dashboard/index.html`'s `API` constant now points to)
+
+### Next steps
+1. Auto-refresh token trigger (time-driven, every 45 min)
+2. Commercial corrections UI (Facturación gross/net/commission edits)
+3. Coordinator limited view for Edder & Jesus
+4. When moving to production: swap sandbox TaxAgency → SAT; pre-create or auto-create `IVA 16%` in production QBO; fresh OAuth handshake against real company
+
+---
+
+## Session log (2026-06-24) — DocNumber bug fix, real end-to-end QBO post verified, dashboard URL repair
+
+**Context:** A separate debugging session (via the Apps Script editor directly, not clasp) had already deployed several new diagnostic endpoints and fixes (`@76`–`@86`) chasing a "postDayToQBO always returns null/pending" symptom, with a working hypothesis that `findOrCreateQBOInvoice` wasn't finding invoices due to a missing `CustomerMemo`. That deployment chain replaced the old documented live deployment ID entirely (it no longer exists — `clasp deploy -i` against it now fails with "Requested entity was not found").
+
+**Investigation — disproved the CustomerMemo hypothesis:** Added a temporary `qbo_trace_post` endpoint. Trace showed `findOrCreateQBOInvoice` correctly found the existing invoice with `CustomerMemo: "ABIERTO — Q2 Jun 2026"` already set — not the problem.
+
+**Real root cause found:** `postDayToQBO`'s `DocNumber` field — `period.replace(' ', '-') + '-' + affiliate.substring(0, 12)` — produced 22–24 character strings, but QBO's Invoice `DocNumber` field has a **21-character limit**. Every single create/sparse-update call was silently rejected by QBO's validation, and `qboApiRequest()` swallows faults into a bare `null`, which is why it always looked like a generic "not connected" failure. Confirmed by replicating the exact payload via hand-rolled fetches (bypassing `DocNumber`) — those succeeded every time; only the real `DocNumber`-bearing payload failed.
+
+**Fix (QBO.js):**
+- `formatPeriodDocNumber(periodString)` — builds `"Q2/JUN/26"` from `"Q2 Jun 2026"` (9 chars, well under the limit).
+- `resolveUniqueDocNumber(base)` — queries existing invoices by `DocNumber LIKE` and appends `A`, `B`, `C`... for additional invoices needed in the same period (DocNumber must be unique per company; one period now needs one DocNumber per affiliate's invoice).
+- Invoice creation uses `resolveUniqueDocNumber(formatPeriodDocNumber(period))`; sparse updates reuse the invoice's **existing** `DocNumber` (`fresh.Invoice.DocNumber`) rather than recomputing — the letter suffix is only resolved once, at creation.
+
+**Verified live, real approval chain, real bookings (not sandbox bypass):** Built staging for 2026-06-23 (7 affiliates, 14 real bookings), ran `authorize_day` → `commercial_approve_day` → `admin_approve_day` → `post_to_qbo`. Result: **7/7 posted, 0 errors.** Two brand-new invoices created with the new format confirmed live: `Q2/JUN/26` (Agam Hotel) and `Q2/JUN/26A` (Carolina Bacalar) — confirms `lines_added > 0` works for genuinely new invoices, not just the "already posted" case.
+
+**Cleanup:**
+- Fixed `dashboard/index.html`'s `API` constant — was pointing to the now-deleted deployment ID, updated to the current live one, committed and pushed.
+- Removed all temporary diagnostic functions/endpoints added during this investigation (`qbo_trace_post`'s endpoint, `traceSparseUpdateRaw`, `traceWithInternalRefresh`, `traceViaSharedRequest` and their API.js cases) — QBO.js and API.js are back to production-only code.
+
+**Still pending:** auto-refresh trigger for the QBO token (still manual via `qbo_refresh`, ~60 min lifespan); production migration steps (separate Production keys, real TaxAgency, fresh OAuth handshake) noted above.
