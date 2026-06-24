@@ -101,7 +101,7 @@ Use for:
 - [x] QBO Phase 2 — Schema + backend (Ops/Commercial/Admin approval chain) — COMPLETE, verified end-to-end (admin_approve_day tested both pass and block cases)
 - [x] Owner commercial dashboard — Facturación page with staging/approval/QBO workflow — COMPLETE
 - [x] QBO Phase 3 logic (customer/product matching, quincena Invoice accumulation, payment recording) — COMPLETE, code only, redesigned 2026-06-22 from daily-invoice to quincena-accumulation model
-- [x] QBO OAuth2 infrastructure (code built, scopes deployed, post_to_qbo tested) — OAuth token exchange BLOCKED by Google redirect interception, see session log 2026-06-22
+- [x] QBO OAuth2 — CONNECTED and posting successfully to the sandbox as of 2026-06-23/24 (see session log below). The earlier "Google redirect interception" blocker turned out to be a different bug (missing `action=` on redirect), now fixed.
 - [ ] Commercial corrections UI (edit gross/net/commission per booking) — pending
 - [ ] Coordinator limited view (Edder & Jesus) — future
 
@@ -340,3 +340,30 @@ Best remaining options to try:
 3. **Ask Intuit community** for the simplest sandbox OAuth2 flow that avoids Google's redirect interception
 4. **Service Account**: more complex but avoids user-based OAuth entirely
 4. Dashboard's Facturación page may still reference the old `qbo_delayed_charge_id`/per-day labels — check `dashboard/index.html`'s JS against the renamed `QBO Invoice ID` column and new `Period` field next time it's touched.
+
+---
+
+## Session log (2026-06-23/24) — QBO OAuth connected; posting verified end-to-end on 2026-06-20
+
+**Goal:** Get `post_to_qbo` to actually post to the QBO sandbox (it had only ever returned graceful "not connected" results before). Found and fixed four separate bugs, not just a stale token.
+
+**Bugs found and fixed (QBO.js / API.js):**
+1. **OAuth callback never fired.** Intuit's redirect lands on our exec URL with `?code=&realmId=` but no `action=` param (our registered redirect_uri has no query string), so `doGet` silently defaulted to `ping` every time — this was the real cause of the 2026-06-22 "OAuth blocked" entry above, not Google's redirect page. Fixed: `doGet` now treats a request carrying `code` with no `action` as `oauth_callback`.
+2. **Wrong API host.** `qboApiRequest()` (and a hardcoded debug endpoint) called `https://quickbooks.api.intuit.com` (production) for a sandbox realm → every call failed with `ApplicationAuthorizationFailed` (403/3100) even with a fresh, correctly-scoped token. Fixed both to `https://sandbox-quickbooks.api.intuit.com`.
+3. **Invalid query field.** `findOrCreateQBOInvoice()` filtered Invoice by `CustomerMemo`, which QBO's query API doesn't allow ("property 'CustomerMemo' is not queryable") → always failed, masked as "not connected". Fixed: query by `CustomerRef` only, filter memo/period client-side.
+4. **Missing sandbox reference data.** `CFG.QBO.INCOME_ACCOUNT_REF`/`TAX_CODE_IVA`/`TAX_CODE_EXEMPT`/`PAYMENT_METHOD_REFS` were all blank placeholders, and the `Commission` item didn't exist yet in the sandbox. Filled with real sandbox IDs (Account "Services"=1, TaxCode TAX/NON, PaymentMethod Cash=1/Visa=3) and created the Commission item (id 19) — **these are sandbox-only values, must be re-picked with the accountant before connecting production.**
+5. **Real bug confirmed live:** `findQBOStagingRow()` matched by Period+Affiliate instead of Date+Affiliate, so when two dates in the same quincena share an affiliate, the QBO Posted/Invoice ID write-back updated the wrong row. Fixed to match Date+Affiliate (the row's natural key); also fixed the same Period-only matching bug in the `qbo_approve_chain` test endpoint.
+
+**Verified live on 2026-06-20** (6 affiliates, MXN 24,443 total net): rebuilt staging, force-approved Ops/Commercial/Admin for sandbox testing, called `post_to_qbo` — all 6 posted with correct QBO Invoice IDs (157, 155, 146, 159, 147, 161) and Customer IDs, payments recorded. Note: posting one date also flushes any other already-approved-but-unposted dates in the same quincena period, by design — QBO invoices accumulate per affiliate per period, not per day.
+
+**Also fixed (pre-existing, found while testing):** 2026-06-22 had 8 stale Admin-Approved-but-unposted rows from earlier testing sessions that got swept into this run's post (their invoices were already correct since each row's own booking lines were used) — only the *sheet write-back* for 3 of 2026-06-20's rows needed manual correction, done via a one-time endpoint (removed after use).
+
+**Cleanup:** removed all one-time/sensitive debug endpoints added during this session (`qbo_set_tokens` token-injection, `qbo_correct_staging_row`). Kept general-purpose debug tools (`qbo_raw_query`, `qbo_test_customer`, `qbo_check_token`, `qbo_refresh`) since they have ongoing diagnostic value.
+
+**Still pending:** access token refresh is still manual only (`qbo_refresh` endpoint) — no time-driven trigger auto-refreshes it, so it'll go stale again after ~60 min of inactivity. Production migration will need separate Production keys (Client ID/Secret) from Intuit and a fresh OAuth handshake against the real company — the sandbox keys hardcoded in `exchangeOAuthCode()`/`refreshOAuthToken()` won't work there.
+
+### Next steps
+1. Add a time-driven trigger to auto-refresh the QBO access token (e.g. every 45 min) so it doesn't go stale between sessions.
+2. When ready for production: request Production keys from Intuit, swap `CLIENT_ID`/`CLIENT_SECRET` and the API host back to `quickbooks.api.intuit.com`, re-pick `INCOME_ACCOUNT_REF`/tax codes/payment method refs with the accountant for the real company, redo OAuth against the real company.
+3. Commercial corrections UI (editing gross/net/commission per booking in Facturación).
+4. Coordinator limited view for Edder & Jesus.
