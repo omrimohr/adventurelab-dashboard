@@ -441,3 +441,23 @@ Best remaining options to try:
 - Removed all temporary diagnostic functions/endpoints added during this investigation (`qbo_trace_post`'s endpoint, `traceSparseUpdateRaw`, `traceWithInternalRefresh`, `traceViaSharedRequest` and their API.js cases) — QBO.js and API.js are back to production-only code.
 
 **Still pending:** auto-refresh trigger for the QBO token (still manual via `qbo_refresh`, ~60 min lifespan); production migration steps (separate Production keys, real TaxAgency, fresh OAuth handshake) noted above.
+
+---
+
+## Session log (2026-06-24) — QBO line/description format changes, deployed + verified
+
+**Goal:** Three formatting changes to `postDayToQBO()` in QBO.js, requested by Omri:
+1. Booking line `ServiceDate` now uses the tour's own date (`Tour Date` from Bookings, carried through staging as `tour_date`) instead of the staging/posting date — stays inside `SalesItemLineDetail` since QBO's schema has no top-level `Line.ServiceDate`.
+2. Booking line `Description` changed to `'Booking #' + booking_pk + ' — ' + contact_name + ' — ' + pax + 'px'` (added client name via new `contact_name` field, dropped tour name/affiliate/date from the string).
+3. Commission line `Description` simplified to just `'Commission'`, with its date now living only in `ServiceDate`. Dedup logic updated accordingly: since Description is no longer unique per day, re-run safety now checks Description **and** ServiceDate together on existing invoice lines (previously matched on Description alone, which embedded the date).
+
+**Booking Lines JSON** (staging) now also carries `tour_date` and `contact_name` per line — added in `buildQBOStagingForDate()`.
+
+**Deployed:** pushed via `clasp push`, then `clasp deploy -i <live deployment id> -V 97` (clasp push alone only updates `@HEAD`, not the live exec URL — must explicitly redeploy the pinned deployment ID each time).
+
+**Verified live** on a fresh random date (2026-06-19, not previously posted): ran `authorize_day` → `commercial_approve_day` → `qbo_build` → `qbo_approve_chain` (test-only force-approve, same pattern as prior sessions) → `post_to_qbo`. Result: 6/8 affiliate invoices posted successfully. Confirmed via `qbo_raw_query` directly against the QBO sandbox Invoice object that the new line shows `"Description":"Booking #356003482 — Luis A Garcia — 1px"` and `"ServiceDate":"2026-06-19"` inside `SalesItemLineDetail` — exactly as intended.
+
+**New (pre-existing, unrelated) bug found while testing:** 2/8 invoices (Mia, Intrepid Travel) failed with `"Invalid Line TaxCode in the request" / "Valid line TaxCodes for US should be TAX or NON. Supplied value: 4"`. Root cause: `resolveOrCreateIVATaxCode()` returns the custom `IVA 16%` TaxCode id (created in the 2026-06-23 session) for IVA-taxed lines, but this sandbox company is provisioned as a **US-template** company, which only accepts `TAX`/`NON` on `SalesItemLineDetail.TaxCodeRef` — custom tax codes aren't valid there even though the TaxCode record itself exists. Diagnosed via a temporary `qbo_trace_create` debug endpoint (added, used, then fully removed — QBO.js/API.js are back to production-only code, deployed @97).
+- Not fixed yet — affects only IVA-taxed lines, and is a sandbox-company-template limitation, not a code bug. Will resolve itself once on a real MX production company (which uses SAT tax codes, not the US TAX/NON pair) — worth re-checking once production OAuth is connected.
+
+**Live Apps Script URL unchanged:** `https://script.google.com/macros/s/AKfycbxnEEtwt_cysahiCnd1PQvXJdmaq19obsvs5EDJIm8DvJv9PjLFmCFwnXLhoT_qcB2yHA/exec` (same deployment ID, now @97).
