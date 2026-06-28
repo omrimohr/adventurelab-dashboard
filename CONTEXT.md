@@ -502,9 +502,46 @@ Best remaining options to try:
 
 **Fix 5 — `findQBOStagingRow` Date+Affiliate matching:** This was already fixed correctly in an earlier session (2026-06-23/24, see above) — it already matches by Date+Affiliate, not Period+Affiliate. No code change made. Re-verified live on 2026-06-19 (8 affiliates staged same date): each affiliate's own `QBO Invoice ID`/`QBO Customer ID`/`QBO Posted` was written to its own row only — no cross-row mixing.
 
-**Current live deployment:** `https://script.google.com/macros/s/AKfycbxnEEtwt_cysahiCnd1PQvXJdmaq19obsvs5EDJIm8DvJv9PjLFmCFwnXLhoT_qcB2yHA/exec` (same deployment ID throughout this session, now @107).
+**Current live deployment:** `https://script.google.com/macros/s/AKfycbxnEEtwt_cysahiCnd1PQvXJdmaq19obsvs5EDJIm8DvJv9PjLFmCFwnXLhoT_qcB2yHA/exec` (same deployment ID throughout this session, now @108).
 
 **Reminders:**
 - `CFG.SANDBOX_MODE = true` is intentional for ongoing sandbox testing — flip to `false` only once a real production QBO company is connected (Fix 3's guard will now block accidental cross-wiring of the flag and the connected realm).
 - Token refresh now runs automatically at the start of every `postQBODate()` call — no more manual `qbo_refresh` needed before posting.
 - The pre-existing IVA TaxCode sandbox bug (documented 2026-06-24 above) is still unresolved and unrelated to these fixes — affects only IVA-taxed affiliates (e.g. Mia, Intrepid Travel) on this sandbox company.
+
+### Session log (2026-06-28) — Reliability rollout: 4 fixes for unattended QBO posting
+**Goal:** harden the daily QBO posting pipeline so it survives token expiry, missed posting days, Apps Script timeouts, and silent morningRun failures — without human intervention. All four fixes built, deployed, and verified live.
+
+**Fix 1 — Token expiry detection (QBO.js):**
+- `refreshOAuthToken()` now detects both `No refresh token found` and `json.error` from Intuit (refresh token expired/revoked) and sends an emergency `🚨 QBO URGENT — Re-authorization Required` email — without this, the daily cron would silently post nothing for days/weeks.
+- Every successful refresh now writes `QBO_TOKEN_REFRESHED_AT` (ISO timestamp) to Script Properties.
+- New `checkQBOTokenAgeWarning()` runs at the top of `postQBODate()` (after a successful refresh) and sends a ONE-SHOT `⚠️ QBO Warning — Token Expiring Soon` email once when the refresh token is older than 90 days. Tracks the latch via `QBO_90D_WARNING_SENT_AT` so it doesn't spam every morning for the remaining ~10 days before expiry.
+- `postQBODate()` now checks the refresh return value — if the refresh fails (dead token), it skips the row loop entirely instead of also firing the pre-existing "QBO not connected" alert on top of the re-auth email.
+
+**Fix 2 — `auditUnpostedDays()` (QBO.js + Helpers.js):**
+- New function scans the QBO Staging sheet for admin-approved (or sandbox-mode) rows that are still `QBO Posted != Y`, dated between yesterday and 7 days back, and auto-retries each missed date through the normal `postQBODate()` path (which respects the existing re-run safety in `postDayToQBO`).
+- Capped at 7 days back per run (`AUDIT_MAX_DAYS_BACK = 7`) to avoid blowing the 6-min Apps Script execution limit if a 30-day backlog existed. Anything older gets a separate email for manual handling.
+- Wired into `morningRun()` BEFORE `buildQBOStagingForYesterday()` — catches missed days first, then processes yesterday normally.
+- Verified live: caught real stale data on first run — 2 out-of-scope rows from 2026-06-19 (out-of-scope email fired), 3 still-failing rows from 2026-06-25 (still-failing email fired; the failures are the pre-existing US-template IVA TaxCode sandbox bug, not a new issue).
+
+**Fix 3 — Apps Script execution time guard (Helpers.js):**
+- `morningRun()` now records `startTime` and logs elapsed seconds after every major phase (`buildDailySummary`, `updateBoatDocStatuses`, post-block total) for observability.
+- 300-second guard wraps the QBO block: if more than 5 minutes have already elapsed by the time QBO would start, it sends `⚠️ QBO Skipped — morningRun too slow` and returns early instead of crashing silently into the 6-minute limit.
+
+**Fix 4 — `morningHealthCheck()` safety net (QBO.js + Helpers.js + API.js):**
+- New function reads the QBO Staging sheet for yesterday's rows, counts any with `QBO Posted != Y`, and if any exist: emails `🚨 QBO Health Check — Unposted invoices for <date>` then calls `postQBODate(yesterday)` to auto-retry. On a healthy day, runs silently with no email.
+- New `resetMorningHealthCheckTrigger()` (Helpers.js) installs a separate 4:30am Cancun trigger (30 min after `morningRun`) — only touches `morningHealthCheck` triggers (other triggers untouched, mirrors the existing `resetMorningRunTrigger` pattern).
+- Installed live 2026-06-28 via `?action=qbo_setup_health_check_trigger` (response: `"morningHealthCheck now runs daily at 4:30am"`).
+- Verified end-to-end: blanked `QBO Posted` on yesterday's already-posted `Cliente Directo` row → ran `morningHealthCheck()` → alert email sent + row reposted successfully (re-run safety verified — booking PK already on invoice, no duplicate lines).
+
+**New endpoints added to API.js (kept as permanent debug helpers, by Omri's call):**
+- `?action=qbo_audit_unposted` — manual trigger for `auditUnpostedDays()`
+- `?action=qbo_health_check` — manual trigger for `morningHealthCheck()`
+- `?action=qbo_setup_health_check_trigger` — installs/reinstalls the 4:30am trigger
+- `?action=qbo_simulate_old_token&days=N&reset_warning=1` — verification helper for the 90-day warning path; sets `QBO_TOKEN_REFRESHED_AT` to N days back. Used to verify Fix 1.
+- `?action=qbo_restore_token_timestamp` — companion to the above, resets the timestamp to now and clears the warning latch.
+- `?action=qbo_test_health_check_blank` — verification helper that blanks a posted row, runs `morningHealthCheck`, and restores. Used to verify Fix 4.
+
+**Helper added:** `sendQBOAlertEmail(subject, body)` in QBO.js — single shared failure-safe email path so notification errors never crash the pipeline.
+
+**Still pending:** the pre-existing IVA TaxCode sandbox bug still triggers the pre-existing "QBO Posting Alert" email daily for Mia/Intrepid Travel/Eco Experience Mexico (alerts whenever `posted === 0`). Omri's call 2026-06-28: live with the emails until production QBO is connected — root cause will resolve itself against a real MX QBO company.
