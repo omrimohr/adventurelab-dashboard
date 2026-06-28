@@ -485,3 +485,26 @@ Best remaining options to try:
 **Verified:** `morningRun` trigger confirmed installed, single instance, 4am Cancun time.
 
 **Production checklist reminder:** before connecting a real QBO company, set `CFG.SANDBOX_MODE = false`. Until then, every staged invoice posts automatically every morning with zero human review — acceptable for sandbox, not for real money.
+
+---
+
+## Session log (2026-06-28) — 5 reliability fixes for QBO posting pipeline, all verified live
+
+**Goal:** harden the daily QBO posting pipeline (token freshness, failure visibility, production-cutover safety, race conditions, row-matching correctness). Worked through 5 requested fixes one at a time, each deployed and verified live before moving to the next.
+
+**Fix 1 — Token refresh before posting (QBO.js):** `refreshOAuthToken()` already existed; added a call to it as the first line of `postQBODate()` so the access token is refreshed before every post run, not just manually via `qbo_refresh`. Verified: token refresh confirmed live, `postQBODate` still runs normally with the call in place.
+
+**Fix 2 — Email alert on posting failure (QBO.js, appsscript.json):** Added an alert block at the end of `postQBODate()` — emails `ceo.gmiexperience@gmail.com` whenever `errors.length > 0 || posted === 0` (after the staged-rows loop runs; the early "nothing staged" return path does not trigger it, by design — that's a no-op day, not a failure). Added the `https://www.googleapis.com/auth/script.send_mail` OAuth scope (note: the originally-specified `gmail.send` scope would NOT have worked — that's for the separate Gmail API, not `MailApp`). Required a one-time manual re-authorization in the Apps Script editor (same as any new scope). Verified live with a temporary test endpoint, then removed it.
+
+**Fix 3 — Sandbox guard for production cutover (Config.js, QBO.js):** Added `CFG.SANDBOX_REALM_ID = '9341457328235620'` (the sandbox company's Realm ID). `postQBODate()` now blocks with a clear error if `CFG.SANDBOX_MODE` and the connected QBO company's realm ID disagree — prevents accidentally posting to the sandbox in "production mode" or to a real company while still flagged as sandbox. Verified both directions live (blocked when flag/realm mismatched, normal when matched), then confirmed the flag was left back at `true`.
+
+**Fix 4 — Flush + delay between staging and posting in morningRun (Helpers.js):** `morningRun()` now does `buildQBOStagingForYesterday()` → `SpreadsheetApp.flush()` → `Utilities.sleep(2000)` → `postQBODate()`, closing a race window where posting could read stale/partial staging data. Verified by running `morningRun` live — staging rows were built and flushed before posting read them, in the correct order.
+
+**Fix 5 — `findQBOStagingRow` Date+Affiliate matching:** This was already fixed correctly in an earlier session (2026-06-23/24, see above) — it already matches by Date+Affiliate, not Period+Affiliate. No code change made. Re-verified live on 2026-06-19 (8 affiliates staged same date): each affiliate's own `QBO Invoice ID`/`QBO Customer ID`/`QBO Posted` was written to its own row only — no cross-row mixing.
+
+**Current live deployment:** `https://script.google.com/macros/s/AKfycbxnEEtwt_cysahiCnd1PQvXJdmaq19obsvs5EDJIm8DvJv9PjLFmCFwnXLhoT_qcB2yHA/exec` (same deployment ID throughout this session, now @107).
+
+**Reminders:**
+- `CFG.SANDBOX_MODE = true` is intentional for ongoing sandbox testing — flip to `false` only once a real production QBO company is connected (Fix 3's guard will now block accidental cross-wiring of the flag and the connected realm).
+- Token refresh now runs automatically at the start of every `postQBODate()` call — no more manual `qbo_refresh` needed before posting.
+- The pre-existing IVA TaxCode sandbox bug (documented 2026-06-24 above) is still unresolved and unrelated to these fixes — affects only IVA-taxed affiliates (e.g. Mia, Intrepid Travel) on this sandbox company.
