@@ -545,3 +545,21 @@ Best remaining options to try:
 **Helper added:** `sendQBOAlertEmail(subject, body)` in QBO.js — single shared failure-safe email path so notification errors never crash the pipeline.
 
 **Still pending:** the pre-existing IVA TaxCode sandbox bug still triggers the pre-existing "QBO Posting Alert" email daily for Mia/Intrepid Travel/Eco Experience Mexico (alerts whenever `posted === 0`). Omri's call 2026-06-28: live with the emails until production QBO is connected — root cause will resolve itself against a real MX QBO company.
+
+---
+
+## Session log (2026-06-28, continued) — Removed 8 dead QBO Staging columns
+
+**Goal:** Omri noticed the QBO Staging sheet had a lot of columns and asked to check for unnecessary ones.
+
+**Found:** the live sheet still had the original Phase-1 column layout (Date, Affiliate, QBO Customer ID, Invoice Lines, Total Net, Total Commission, Total IVA, Total Gross, Booking Count, QBO Invoice ID, Status, Staged At, Approved By, Approved At, Sent At, Error) with all the newer approval-chain columns appended after it by `addQBOStagingColumns()` — order never matched `Config.js`'s `COLS.QBO_STAGING` array. Confirmed this was harmless (not a bug): `appendObjectAsRow`/`getColMap`/`readSheetAsObjects` all map by header **name**, never by position.
+
+**8 dead columns identified and removed** (zero code references, or superseded by a newer column):
+- `Invoice Lines` (superseded by `Booking Lines JSON`)
+- `Total Net`, `Total Gross` (superseded by the `(MXN)` versions; legacy ones were never written to)
+- `Status` (frozen at `"staged"` forever — set once at creation for cell coloring only, never updated even after Admin Approved/QBO Posted; actively misleading, not just unused)
+- `Approved By`, `Approved At`, `Sent At`, `Error` (zero references anywhere in the codebase)
+
+**Done via:** `removeDeadQBOStagingColumns()` (Helpers.js) — deletes by header name (re-reads `getColMap` after each delete since indices shift), kept in the codebase as a one-time-migration-style function (same convention as `addQBOStagingColumns`/`addMissingBookingsColumns`). Temporary `qbo_cleanup_dead_columns` API endpoint added, run once, then removed.
+
+**Verified live:** sheet now has 28 columns (was 36), matches `Config.js`'s schema exactly. Re-checked `qbo_staging_for_date` on existing 2026-06-23 data — all 7 rows still read correctly (7/7 ops/comm/admin approved, 7/7 posted, totals intact) after the column deletion.
