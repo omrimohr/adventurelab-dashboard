@@ -102,6 +102,7 @@ Use for:
 - [x] Owner commercial dashboard — Facturación page with staging/approval/QBO workflow — COMPLETE
 - [x] QBO Phase 3 logic (customer/product matching, quincena Invoice accumulation, payment recording) — COMPLETE, code only, redesigned 2026-06-22 from daily-invoice to quincena-accumulation model
 - [x] QBO OAuth2 — CONNECTED and posting successfully to the sandbox, full real approval chain verified end-to-end on real bookings (2026-06-23: 7/7 affiliates posted, 0 errors) as of 2026-06-24. The earlier "Google redirect interception" blocker turned out to be a different bug (missing `action=` on redirect), now fixed. A separate DocNumber-too-long bug (see session log below) also fixed.
+- [x] QBO sandbox automation — `morningRun` now auto-builds + auto-posts QBO staging for yesterday, daily at 4am Cancun, gated entirely by `CFG.SANDBOX_MODE` (see session log below). **Must flip to `false` before connecting a real production QBO company.**
 - [ ] Commercial corrections UI (edit gross/net/commission per booking) — pending
 - [ ] Coordinator limited view (Edder & Jesus) — future
 
@@ -461,3 +462,26 @@ Best remaining options to try:
 - Not fixed yet — affects only IVA-taxed lines, and is a sandbox-company-template limitation, not a code bug. Will resolve itself once on a real MX production company (which uses SAT tax codes, not the US TAX/NON pair) — worth re-checking once production OAuth is connected.
 
 **Live Apps Script URL unchanged:** `https://script.google.com/macros/s/AKfycbxnEEtwt_cysahiCnd1PQvXJdmaq19obsvs5EDJIm8DvJv9PjLFmCFwnXLhoT_qcB2yHA/exec` (same deployment ID, now @97).
+
+---
+
+## Session log (2026-06-24, continued) — Sandbox auto-post pipeline (SANDBOX_MODE)
+
+**Goal:** automate the full daily QBO posting pipeline for sandbox testing — no manual approval clicks needed, while keeping a documented one-flag path back to the real approval gate for production.
+
+**Config.js:**
+- Added `CFG.SANDBOX_MODE = true`. Flip to `false` for production — restores the Admin Approved gate immediately, no other code changes needed.
+
+**QBO.js:**
+- `postQBODate()`'s row filter changed from `Admin Approved === 'Y'` to `(CFG.SANDBOX_MODE || Admin Approved === 'Y')` — when sandbox mode is on, every staged-but-unposted row posts regardless of approval state.
+
+**Helpers.js:**
+- `morningRun()` now also calls `postQBODate(yesterdayStr())` after `buildQBOStagingForYesterday()` — the daily cron now builds AND posts automatically.
+- Added `resetMorningRunTrigger()` — deletes only existing `morningRun` triggers (leaves `wednesdayPaymentRun`/`archiveCheck` alone) and installs a fresh one at **4am America/Cancun**. Exposed via `?action=qbo_setup_morning_trigger` for one-off re-runs.
+
+**appsscript.json:**
+- Added the `script.scriptapp` OAuth scope (required for `ScriptApp.getProjectTriggers()`/`deleteTrigger()`). New scopes require a one-time manual re-authorization — Omri ran `resetMorningRunTrigger` once from the Apps Script editor to grant it; confirmed working afterward via the API endpoint (idempotent — re-running always reports `removed: 1`, never accumulates duplicate triggers).
+
+**Verified:** `morningRun` trigger confirmed installed, single instance, 4am Cancun time.
+
+**Production checklist reminder:** before connecting a real QBO company, set `CFG.SANDBOX_MODE = false`. Until then, every staged invoice posts automatically every morning with zero human review — acceptable for sandbox, not for real money.
