@@ -465,6 +465,29 @@ Best remaining options to try:
 
 ---
 
+## Session log (2026-06-29) — Diagnosed + fixed nightly "QBO Posting Alert" emails
+
+**Trigger:** Omri got a "QBO Posting Alert — 2026-06-28" email listing 3 failed affiliates (Mia, Intrepid Travel, Eco Experience Mexico). Note: between the 2026-06-24 and this session, another tool/session (version names "minimax"/"minimax2", "Fix 1-4") had set up a **4am daily cron calling `postQBODate`** — this is why alert emails started arriving automatically; wasn't there before.
+
+**Root cause #1 — stale test data:** Mia and Intrepid Travel were leftover **from the 2026-06-24 verification run** in this log (2026-06-19 test date) — both have IVA-taxed lines, and the sandbox QBO company only accepts `TAX`/`NON` codes on `SalesItemLineDetail.TaxCodeRef`, not our custom `IVA 16%` code (see prior entry). They were stuck unposted in QBO Staging and got retried — and re-failed — every night.
+**Fix:** deleted exactly those 2 staging rows (Date=2026-06-19, Affiliate=Mia / Intrepid Travel) via a temporary one-off endpoint, verified the other 6 affiliates for that date (all already `QBO Posted=Y`) were untouched, then removed the endpoint.
+
+**Root cause #2 — sandbox approval bypass too broad:** `postQBODate()`'s filter was `CFG.SANDBOX_MODE || Admin Approved === 'Y'` — in sandbox mode this bypassed the approval check **entirely**, so any unposted row in the same quincena period got swept into the nightly attempt regardless of approval state. This is how `Eco Experience Mexico` (2026-06-25, no approvals at all) got included and alerted.
+**Fix:** changed the condition to require `Ops Approved = 'Y'` unconditionally, with the sandbox bypass now only covering Admin Approved:
+```js
+String(r['Ops Approved'] || '').toUpperCase() === 'Y' &&
+(CFG.SANDBOX_MODE || String(r['Admin Approved'] || '').toUpperCase() === 'Y')
+```
+So: sandbox now requires Ops Approved=Y to attempt a post; production still requires both Ops + Admin. Unapproved rows are never swept in either mode.
+
+**Verified live** with a temporary fake staging row (`ZZZ_TEST_GATE`, fabricated date 2099-01-01, no real booking lines): confirmed `post_to_qbo` skipped it entirely with no `Ops Approved`, then after setting `Ops Approved=Y` confirmed it was picked up and attempted (failed only on "No booking lines to post", as expected for fake data — proves the gate, not the full post path). Deleted the test row and all temporary endpoints (`qbo_delete_staging_row`, `qbo_gate_test_setup`, `qbo_gate_test_approve_ops`) afterward — QBO.js/API.js back to production-only code, deployed @114.
+
+**Confirmed after fix:** `Eco Experience Mexico` (2026-06-25) still has no Ops Approval — will now be correctly skipped by tonight's cron instead of alerting again.
+
+**Still pending:** the underlying sandbox IVA-tax-code limitation (Mia/Intrepid Travel's actual blocker) is unresolved — expected to resolve naturally once on production QuickBooks (Mexican SAT tax codes instead of US TAX/NON). Revisit if it recurs post-production-migration.
+
+---
+
 ## Session log (2026-06-24, continued) — Sandbox auto-post pipeline (SANDBOX_MODE)
 
 **Goal:** automate the full daily QBO posting pipeline for sandbox testing — no manual approval clicks needed, while keeping a documented one-flag path back to the real approval gate for production.
