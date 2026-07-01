@@ -586,3 +586,33 @@ So: sandbox now requires Ops Approved=Y to attempt a post; production still requ
 **Done via:** `removeDeadQBOStagingColumns()` (Helpers.js) — deletes by header name (re-reads `getColMap` after each delete since indices shift), kept in the codebase as a one-time-migration-style function (same convention as `addQBOStagingColumns`/`addMissingBookingsColumns`). Temporary `qbo_cleanup_dead_columns` API endpoint added, run once, then removed.
 
 **Verified live:** sheet now has 28 columns (was 36), matches `Config.js`'s schema exactly. Re-checked `qbo_staging_for_date` on existing 2026-06-23 data — all 7 rows still read correctly (7/7 ops/comm/admin approved, 7/7 posted, totals intact) after the column deletion.
+
+---
+
+## Session log (2026-07-01) — Ops Day-View Approval Dashboard shipped
+
+**Goal:** ship the mobile day-view page (`ops.html`) where Edder/Jesús review and approve each day's tours, backed by a new `ops_day` API endpoint.
+
+**Files changed:** `Config.js`, `Webhook.js`, `API.js`, new `OpsDay.js` (apps-script); `dashboard/ops.html` (already existed on disk, now committed).
+
+**Step 1 — Contact PK column (needed for per-booking FareHarbor links):**
+- Added `Contact PK` to `COLS.BOOKINGS` (Config.js).
+- **Found:** FareHarbor's webhook payload has no `contact.pk` field at all (`contact` only has name/email/phone/language). The numeric Contact PK only appears embedded in `booking.dashboard_url`, e.g. `.../contacts/313329100/bookings/<uuid>/`. Added `extractContactPk(booking)` (Webhook.js) — regex-extracts it from `dashboard_url` — and wired it into `extractBookingData()` so all new bookings populate it automatically.
+- Backfilled existing bookings via a temporary endpoint (join on Bookings.`Raw Key` == Raw sheet UUID, parse each row's stored JSON, apply the same `dashboard_url` regex): **1319/1329 updated**, 10 left blank (no matching Raw row). Temp endpoint + backfill function removed after the run.
+
+**Step 2 — `ops_day` endpoint (OpsDay.js):**
+- `getOpsDayData(dateStr)` reads Tours + Bookings (full-sheet reads via `getLastRow()`, same pattern as `buildQBOStagingForDate()`), joins bookings to tours via `Booking PKs`, returns the exact JSON shape from the spec (tour cards with nested bookings, crew, flags, FH links).
+- **Bug found + fixed:** `readSheetAsObjects()` already converts sheet Date cells to `'yyyy-MM-dd'` strings before returning them — the initial `formatDateOps_()` was re-parsing that string with `new Date(...)`, which shifts it a day under `America/Cancun` (the same class of TZ bug documented 2026-06-21). Fixed to pass through already-formatted date strings instead of re-parsing.
+- **Spec mismatch found + fixed:** the task spec assumed Tours' `Crew` column was `"Name - Role"` dash-separated. Live data (and `extractCrew()` in Helpers.js) is actually `"Name (Role), Name (Role)"`. Rewrote the parser to match reality.
+- Booking `fh_url` now built from `Contact PK` + `UUID` (previously impossible without Step 1).
+- Added `case 'ops_day': return respondJSON(getOpsDayData(params.date));` to API.js.
+
+**Step 3 — Frontend:** `dashboard/ops.html` was already present in the repo (pre-built, approved UI) pointing at the correct live Apps Script URL — no changes needed, just committed to git.
+
+**Verified live** (2026-06-23, 10 tours / 30 pax / $29,449 bruto / $24,637 neto): served `ops.html` locally, loaded the day, confirmed card totals, crew badges (Capitán/Guía/Marinero), flags, expand/collapse, and both tour-level and per-booking FareHarbor links resolve to real URLs with correct Contact PKs.
+
+**Deployed:** same pinned live deployment ID (`AKfycbxnEEtwt_cysahiCnd1PQvXJdmaq19obsvs5EDJIm8DvJv9PjLFmCFwnXLhoT_qcB2yHA`), now at **@125**.
+
+**Known pre-existing issue (not introduced by this session):** some Resources/text fields in the sheet contain double-encoded UTF-8 (e.g. "pontón" stored as "pontÃ³n" at the byte level) — renders correctly in the browser (UTF-8 is UTF-8), only looked broken when viewed through `curl`/raw JSON. Not fixed; flagging in case it resurfaces elsewhere.
+
+**Not yet done (out of scope for this session):** per-tour `ops_approved`/`com_approved` columns — `ops_day` currently always returns `false` for both, per the spec's explicit instruction to defer this to a later session.
