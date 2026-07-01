@@ -616,3 +616,46 @@ So: sandbox now requires Ops Approved=Y to attempt a post; production still requ
 **Known pre-existing issue (not introduced by this session):** some Resources/text fields in the sheet contain double-encoded UTF-8 (e.g. "pontón" stored as "pontÃ³n" at the byte level) — renders correctly in the browser (UTF-8 is UTF-8), only looked broken when viewed through `curl`/raw JSON. Not fixed; flagging in case it resurfaces elsewhere.
 
 **Not yet done (out of scope for this session):** per-tour `ops_approved`/`com_approved` columns — `ops_day` currently always returns `false` for both, per the spec's explicit instruction to defer this to a later session.
+
+---
+
+## Session log (2026-07-01, continued) — Fixed a week-long dead webhook, then Ops Day-View bug list
+
+**Goal:** Omri reported a long list of bugs in the new Ops Day-View (`ops.html`): missing tours, wrong revenue on specific bookings, wrong hours, missing crew, cancelled bookings still counting revenue, and several UX asks (refresh button, faster nav, modern date picker, availability # for debugging).
+
+### Root cause found: FareHarbor webhook had been dead for a week
+Investigated the "wrong hour" complaint (#5) by reverse-engineering Google Sheets' historical 1899-epoch time-serial quirk (`-05:47:04` LMT offset for `America/Cancun`) to prove our parsing code was self-consistent and correct on both write and read. That ruled out a code bug — the *displayed* wrong hour matched exactly what the *original* (pre-correction) booking time would have produced, meaning our data was just stale.
+
+Traced further and found the real cause: **FareHarbor's configured Webhook URL (Settings → Users & Permissions → Omri → Webhooks) pointed to a completely different, frozen Apps Script deployment** (`AKfycbzMJB...`) than the one this project has been building/deploying to all along (`AKfycbxnEEtw...`). Confirmed via the Raw sheet: **the last webhook received was 2026-06-24 02:13 AM** — a full week of silent data loss (missing bookings, missing cancellations, missing crew/schedule changes) up to today, 2026-07-01.
+
+**Also found:** in that same webhook config, only "Updated bookings" was checked — "New bookings" and "Cancelled bookings" were both unchecked. This independently explains why cancelled bookings never reflected (issue #9) and why certain OTA/channel bookings (e.g. Viator, hotel-affiliate) never arrived (issue #1/#11) even before the URL went stale.
+
+**Fixed (via browser, using Claude in Chrome connected to Omri's already-logged-in FareHarbor session):**
+1. Checked "New bookings" and "Cancelled bookings" (all three now checked), saved, verified persisted.
+2. Updated the Webhook URL to the current live deployment (`AKfycbxnEEtwt_cysahiCnd1PQvXJdmaq19obsvs5EDJIm8DvJv9PjLFmCFwnXLhoT_qcB2yHA/exec`), saved, verified persisted.
+3. **Verified live end-to-end**: a real customer booking (#359402161, James Landon via Booking.com → Hotel Aires affiliate) arrived in the Raw sheet within a minute of the fix, with `Contact PK` correctly populated — proof it's flowing through today's code, not the old dead deployment.
+
+**Double-booking safety check (explicitly requested before enabling all 3 triggers):** confirmed all three write paths a webhook touches are upsert-based, not append-only — `writeRaw()` upserts by UUID, `writeBookingToSheet()` upserts by Booking PK, `updateTour()`/`aggregateTour()` fully recomputes the Tours row from scratch on every call and upserts by Availability PK. So firing New+Updated+Cancelled for the same event just re-derives the same state each time — no duplicate rows, no double-counted revenue.
+
+**Not backfilled (by Omri's explicit call):** the 2026-06-24→07-01 gap in Bookings/Tours data. Some historical Tours rows (e.g. a cancelled booking whose Tours aggregate was never refreshed during the outage) will show stale non-zero totals until a future webhook happens to touch that same availability again — not fixed manually, and not expected to recur for anything cancelled/booked going forward.
+
+### Ops Day-View bug list — progress
+| # | Issue | Status |
+|---|---|---|
+| 1 | Only a few tours rendering | Root cause was the dead webhook (see above); also improved by decoupling `ops_day`'s booking list from Tours' `Booking PKs` string (see #9 fix) |
+| 2 | Wrong net/gross on booking #356227612 | **Not done** — flagged as needing a dedicated deep-dive, not addressed this session |
+| 3 | Refresh button | **Done** — top-right icon button in `ops.html`, calls `ops_day?...&refresh=1` which bypasses OpsDay.js's 90s server-side cache (`getOpsDayData(dateStr, bypassCache)`) |
+| 4 | Date nav feels slow | **Done** — see #6 (same fix covers both) |
+| 5 | Wrong hour on booking #356227612 | Root cause was the dead webhook (data was stale, not mis-parsed) — resolved by the webhook fix |
+| 6 | Slow to load a day | **Done** — `OpsDay.js`'s `getRowsForDate_()` now narrow-reads just the date column first to find matching row numbers, then batch-fetches only those full rows via `getRangeList` (was: reading + formatting every row of both sheets every time). Added a 90-second server-side cache (`CacheService`) so repeat/back-forward navigation is instant |
+| 7 | Modern date picker | **Done** — invisible native `<input type="date">` overlaid on the date button; tapping it calls `showPicker()` for the OS/browser's own fast calendar. Left/right arrows unchanged per Omri's request |
+| 8 | Crew not pulled for one tour | Root cause was the dead webhook (crew assigned via an availability-only edit never re-triggered any webhook) — resolved by the webhook fix |
+| 9 | Cancelled/refunded booking still shows and counts revenue | **Done** — `OpsDay.js` now separately tracks non-`'booked'`-status bookings per Availability PK (`cancelledByAvail`) and appends them to each tour's booking list with pax/gross/commission/net all zeroed and a `cancelled: true` flag. `ops.html` renders these with a strikethrough name, "Cancelado / Reembolsado" tag, and red-tinted row. Tour-level totals were already correct (`aggregateTour()` already excludes non-`'booked'` rows) |
+| 10 | Add availability # to UI for debugging | **Done** — `availability_pk` added to the tour JSON; rendered as a small gray `#<id>` tag next to the tour name in `ops.html` |
+| 11 | Availability 2007559890 (Sunrise Paddleboard) badly wrong | Root cause was the dead webhook — 2 of its 3 real bookings (one via Azul 36 Hotel, one via Viator API) had simply never arrived; confirmed live in FareHarbor via the browser. Resolved by the webhook fix |
+
+**Verified live** (browser, local static server): expanded a tour with the known cancelled booking (#350485594, avail `2014596223`, 2026-06-28) — confirmed the strikethrough/red styling, $0 across gross/commission/net, "Cancelado / Reembolsado" tag; confirmed the refresh button reloads cleanly; confirmed the native date picker jumps directly to an arbitrary date.
+
+**Deployed:** same pinned live deployment ID, now at **@144**.
+
+**Still open:** issue #2 (booking #356227612's net/gross mismatch) — needs a dedicated investigation, not started.

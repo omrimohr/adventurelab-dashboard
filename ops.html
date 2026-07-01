@@ -43,6 +43,9 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
 .datebtn .d-day{font:700 20px/1 var(--sans);letter-spacing:-.4px}
 .datebtn .d-name{font:500 11.5px/1 var(--sans);color:var(--ink-soft);margin-top:4px}
 .datebtn .d-year{position:absolute;right:10px;bottom:8px;font:500 9px/1 var(--mono);letter-spacing:.5px;color:var(--ink-faint)}
+.datebtn #datepicker{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:none;cursor:pointer;padding:0}
+#refresh svg{transition:transform .5s}
+#refresh.spin svg{animation:spin .6s linear}
 .daytotals{margin-left:auto;display:flex;flex-direction:column;gap:5px;text-align:right;align-items:flex-end}
 .daystat{font:600 10px/1 var(--mono);letter-spacing:.4px;color:var(--ink-soft)}
 .dt{display:flex;align-items:baseline;justify-content:flex-end;gap:9px}
@@ -76,6 +79,7 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
 .tour-body{padding:12px 13px}
 .t-row1{display:flex;align-items:center;gap:9px;cursor:pointer}
 .hour{font:600 12px/1 var(--mono);letter-spacing:.5px;background:var(--ink);color:#EAF3F2;padding:6px 8px;border-radius:7px;flex:none}
+.avail-tag{font:500 10px/1 var(--mono);color:var(--ink-faint);flex:none}
 .t-row1 .name{font-weight:600;font-size:15.5px;letter-spacing:-.1px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tcorr-mark{display:none;flex:none;color:var(--amber)}
 .tour.has-corr .tcorr-mark{display:inline-flex}
@@ -133,6 +137,9 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
 .resv-net{font:600 13px/1 var(--mono);color:var(--ink)}
 .paydot{width:9px;height:9px;border-radius:50%;flex:none}
 .paydot.full{background:var(--teal)}.paydot.due{background:var(--amber)}
+.resv.cancelled{background:var(--red-wash)}
+.resv.cancelled .resv-nm{text-decoration:line-through;color:var(--ink-soft)}
+.cancel-tag{display:inline-flex;align-items:center;font:600 10px/1 var(--mono);letter-spacing:.5px;text-transform:uppercase;color:#B42A2E;background:#FCE9E9;border:1px solid #F3C6C7;padding:3px 7px;border-radius:6px;margin-right:8px}
 .resv-chev{color:var(--ink-faint);flex:none;transition:transform .2s}
 .resv.open .resv-chev{transform:rotate(180deg)}
 .resv-detail{display:none;padding:0 11px 12px 43px}
@@ -192,8 +199,10 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
       <div class="d-day" id="d-day">—</div>
       <div class="d-name" id="d-name">&nbsp;</div>
       <div class="d-year" id="d-year">&nbsp;</div>
+      <input type="date" id="datepicker" aria-label="Elegir fecha">
     </button>
     <button class="arrow" id="next" aria-label="Día siguiente">›</button>
+    <button class="arrow" id="refresh" aria-label="Actualizar" title="Actualizar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11A8.1 8.1 0 004.5 9M4 5v4h4"/><path d="M4 13a8.1 8.1 0 0015.5 2M20 19v-4h-4"/></svg></button>
     <div class="daytotals">
       <div class="daystat" id="day-stat">&nbsp;</div>
       <div class="dt"><span class="k">BRUTO DÍA</span><span class="v" id="day-gross">—</span></div>
@@ -254,7 +263,7 @@ const ICON = {
 const light = (on,l) => `<span class="light ${on?'on':''}"><span class="ck">${on?'✓':''}</span>${l}</span>`;
 
 // ── API fetch ──
-async function loadDay(dateStr) {
+async function loadDay(dateStr, forceRefresh) {
   currentDate = dateStr;
   $('#day').innerHTML = '<div class="loading"><div class="spin"></div><br>Cargando tours…</div>';
   // Clear header while loading
@@ -263,7 +272,7 @@ async function loadDay(dateStr) {
   $('#d-year').textContent = '';
 
   try {
-    const url = API + '?action=ops_day&date=' + dateStr;
+    const url = API + '?action=ops_day&date=' + dateStr + (forceRefresh ? '&refresh=1' : '');
     const resp = await fetch(url);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     DAY = await resp.json();
@@ -277,21 +286,23 @@ async function loadDay(dateStr) {
 
 // ── Render ──
 function renderBooking(b, tid, i) {
-  const pay = b.paid_full ? '<div class="pay full">✓ Pagado completo</div>' : `<div class="pay due">Falta ${money(b.missing)} MXN</div>`;
+  const pay = b.cancelled
+    ? '<span class="cancel-tag">Cancelado / Reembolsado</span>'
+    : (b.paid_full ? '<div class="pay full">✓ Pagado completo</div>' : `<div class="pay due">Falta ${money(b.missing)} MXN</div>`);
   const sub = (b.affiliate ? `<b>${b.affiliate}</b> · ` : '') + `Booked by ${b.booked_by}`;
   const fhLink = b.fh_url ? `<a class="rfh" href="${b.fh_url}" target="_blank" rel="noopener">${ICON.fh} FareHarbor</a>` : '';
   return `
-  <div class="resv" id="r-${tid}-${i}">
+  <div class="resv ${b.cancelled?'cancelled':''}" id="r-${tid}-${i}">
     <div class="resv-row" onclick="rtoggle('${tid}',${i})">
       <span class="checkin ${b.checked_in?'in':''}">${b.checked_in?'✓':''}</span>
       <div class="resv-main">
         <div class="resv-nm">${b.name}</div>
-        <div class="resv-sub">${sub}</div>
+        <div class="resv-sub">${b.cancelled ? 'Cancelado / Reembolsado' : sub}</div>
       </div>
       <div class="resv-right">
         <span class="resv-pax">${b.pax}px</span>
         <span class="resv-net">${money(b.net)}</span>
-        <span class="paydot ${b.paid_full?'full':'due'}"></span>
+        ${b.cancelled ? '' : `<span class="paydot ${b.paid_full?'full':'due'}"></span>`}
         <span class="resv-chev">${ICON.chevsm}</span>
       </div>
     </div>
@@ -322,6 +333,7 @@ function renderTour(t) {
            onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggle('${id}')}">
         <span class="hour">${t.hour}</span>
         <span class="name">${t.name}</span>
+        <span class="avail-tag">#${t.availability_pk}</span>
         <span class="tcorr-mark" title="Corrección reportada">${ICON.pencil}</span>
         <span class="lights">${light(t.ops_approved,'OPS')}${light(t.com_approved,'COM')}</span>
         <span class="chev">${ICON.chev}</span>
@@ -464,10 +476,27 @@ function corrCancel(id) {
 // ── Date navigation ──
 $('#prev').onclick = () => loadDay(shiftDate(currentDate, -1));
 $('#next').onclick = () => loadDay(shiftDate(currentDate, 1));
-$('#datebtn').onclick = () => {
-  // Simple: prompt for date (could be replaced with a date-picker later)
-  const input = prompt('Fecha (YYYY-MM-DD):', currentDate);
-  if (input && /^\d{4}-\d{2}-\d{2}$/.test(input)) loadDay(input);
+
+// Native date picker: an invisible <input type="date"> sits on top of the
+// date button. Tapping the button opens the OS/browser's own fast calendar
+// picker (showPicker() where supported) instead of a text prompt.
+const datePicker = $('#datepicker');
+$('#datebtn').onclick = (e) => {
+  if (e.target === datePicker) return; // let the native input handle its own click
+  datePicker.value = currentDate;
+  if (datePicker.showPicker) { try { datePicker.showPicker(); return; } catch (err) {} }
+  datePicker.focus();
+};
+datePicker.onchange = () => { if (datePicker.value) loadDay(datePicker.value); };
+
+// Refresh: force-bypass the server cache so approvals/corrections/new
+// bookings made in FareHarbor show up immediately instead of waiting
+// out the short cache TTL.
+$('#refresh').onclick = async () => {
+  const btn = $('#refresh');
+  btn.classList.add('spin');
+  await loadDay(currentDate, true);
+  setTimeout(() => btn.classList.remove('spin'), 600);
 };
 
 // ── Init: load today ──
