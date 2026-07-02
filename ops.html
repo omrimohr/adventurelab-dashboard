@@ -195,12 +195,12 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
   </div></div>
   <div class="datenav"><div class="datenav-row">
     <button class="arrow" id="prev" aria-label="Día anterior">‹</button>
-    <button class="datebtn" id="datebtn">
+    <div class="datebtn" id="datebtn" role="button" tabindex="0">
       <div class="d-day" id="d-day">—</div>
       <div class="d-name" id="d-name">&nbsp;</div>
       <div class="d-year" id="d-year">&nbsp;</div>
       <input type="date" id="datepicker" aria-label="Elegir fecha">
-    </button>
+    </div>
     <button class="arrow" id="next" aria-label="Día siguiente">›</button>
     <button class="arrow" id="refresh" aria-label="Actualizar" title="Actualizar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11A8.1 8.1 0 004.5 9M4 5v4h4"/><path d="M4 13a8.1 8.1 0 0015.5 2M20 19v-4h-4"/></svg></button>
     <div class="daytotals">
@@ -246,6 +246,22 @@ function shiftDate(dateStr, days) {
   return d.toISOString().slice(0, 10);
 }
 
+// Compute the date header labels locally (no need to wait on the API for
+// this — it's pure date math) so the header updates the instant the user
+// navigates, instead of blanking out until the network response arrives.
+const DAY_NAMES = ['Domingo','Lunes','Martes','Miercoles','Jueves','Viernes','Sabado'];
+const MONTH_NAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function dateLabels(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  return { d_day: d.getDate() + ' ' + MONTH_NAMES[d.getMonth()], d_name: DAY_NAMES[d.getDay()], d_year: String(d.getFullYear()) };
+}
+function setHeader(dateStr) {
+  const l = dateLabels(dateStr);
+  $('#d-day').textContent = l.d_day;
+  $('#d-name').textContent = l.d_name;
+  $('#d-year').textContent = l.d_year;
+}
+
 const ICON = {
   pax:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5"/></svg>',
   rec:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 14h18l-2 5H5z"/><path d="M6 14V7l6-3 6 3v7"/></svg>',
@@ -263,23 +279,46 @@ const ICON = {
 const light = (on,l) => `<span class="light ${on?'on':''}"><span class="ck">${on?'✓':''}</span>${l}</span>`;
 
 // ── API fetch ──
+// Client-side cache of already-fetched days (in-memory, this tab only) so
+// revisiting a date already seen in this session is instant -- no network
+// round-trip at all. Adjacent days are silently prefetched in the
+// background after every load so back/forward navigation usually hits
+// this cache too.
+const dayCache = new Map(); // dateStr -> payload
+const inFlight = new Map(); // dateStr -> Promise (de-dupes concurrent fetches)
+
+function fetchDay(dateStr, forceRefresh) {
+  if (!forceRefresh && dayCache.has(dateStr)) return Promise.resolve(dayCache.get(dateStr));
+  if (!forceRefresh && inFlight.has(dateStr)) return inFlight.get(dateStr);
+  const url = API + '?action=ops_day&date=' + dateStr + (forceRefresh ? '&refresh=1' : '');
+  const p = fetch(url)
+    .then(resp => { if (!resp.ok) throw new Error('HTTP ' + resp.status); return resp.json(); })
+    .then(data => { if (data.error) throw new Error(data.error); dayCache.set(dateStr, data); inFlight.delete(dateStr); return data; })
+    .catch(err => { inFlight.delete(dateStr); throw err; });
+  inFlight.set(dateStr, p);
+  return p;
+}
+
+function prefetchAround(dateStr) {
+  fetchDay(shiftDate(dateStr, -1)).catch(() => {});
+  fetchDay(shiftDate(dateStr, 1)).catch(() => {});
+}
+
 async function loadDay(dateStr, forceRefresh) {
   currentDate = dateStr;
-  $('#day').innerHTML = '<div class="loading"><div class="spin"></div><br>Cargando tours…</div>';
-  // Clear header while loading
-  $('#d-day').textContent = '…';
-  $('#d-name').textContent = '';
-  $('#d-year').textContent = '';
+  setHeader(dateStr); // instant -- pure date math, doesn't wait on the network
+
+  const cached = !forceRefresh && dayCache.get(dateStr);
+  if (!cached) $('#day').innerHTML = '<div class="loading"><div class="spin"></div><br>Cargando tours…</div>';
 
   try {
-    const url = API + '?action=ops_day&date=' + dateStr + (forceRefresh ? '&refresh=1' : '');
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    DAY = await resp.json();
-    if (DAY.error) throw new Error(DAY.error);
+    DAY = await fetchDay(dateStr, forceRefresh);
+    if (currentDate !== dateStr) return; // user navigated again before this resolved
     render();
+    prefetchAround(dateStr);
   } catch (err) {
     console.error(err);
+    if (currentDate !== dateStr) return;
     $('#day').innerHTML = `<div class="error">Error cargando datos<br><small>${err.message}</small><button onclick="loadDay('${dateStr}')">Reintentar</button></div>`;
   }
 }
@@ -479,14 +518,21 @@ $('#next').onclick = () => loadDay(shiftDate(currentDate, 1));
 
 // Native date picker: an invisible <input type="date"> sits on top of the
 // date button. Tapping the button opens the OS/browser's own fast calendar
-// picker (showPicker() where supported) instead of a text prompt.
+// picker (showPicker() where supported, falling back to a native click).
 const datePicker = $('#datepicker');
-$('#datebtn').onclick = (e) => {
-  if (e.target === datePicker) return; // let the native input handle its own click
+function openDatePicker() {
   datePicker.value = currentDate;
   if (datePicker.showPicker) { try { datePicker.showPicker(); return; } catch (err) {} }
-  datePicker.focus();
-};
+  datePicker.click();
+}
+$('#datebtn').addEventListener('click', (e) => {
+  if (e.target === datePicker) return; // the input's own click already opens its picker
+  openDatePicker();
+});
+$('#datebtn').addEventListener('keydown', (e) => {
+  if (e.target === datePicker) return;
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDatePicker(); }
+});
 datePicker.onchange = () => { if (datePicker.value) loadDay(datePicker.value); };
 
 // Refresh: force-bypass the server cache so approvals/corrections/new

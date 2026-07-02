@@ -659,3 +659,32 @@ Traced further and found the real cause: **FareHarbor's configured Webhook URL (
 **Deployed:** same pinned live deployment ID, now at **@144**.
 
 **Still open:** issue #2 (booking #356227612's net/gross mismatch) — needs a dedicated investigation, not started.
+
+---
+
+## Session log (2026-07-02) — Ops Day-View UX fixes + a real duplicate-booking bug found and fixed
+
+**Goal:** Omri reported the date header blanking out during navigation, the date picker not opening a calendar, and slow tour loads.
+
+**Fix 1 — date picker didn't open (`ops.html`):** root cause was invalid HTML — an `<input type="date">` was nested inside a `<button>`. Buttons can't contain interactive content; browsers silently break the nested input's own click/interaction. Changed `#datebtn` from `<button>` to `<div role="button" tabindex="0">`. Picker now opens via `showPicker()` with a `.click()` fallback.
+
+**Fix 2 — date header blanked while loading:** the header (day/name/year) was being cleared to `…` and re-populated only after the API responded. Added a pure client-side `dateLabels()`/`setHeader()` (just date math, no network) so the header updates the instant you tap prev/next/pick a date; only the tour list itself shows a loading state.
+
+**Fix 3 — slow loads:**
+- Added a client-side cache (`dayCache`, in-memory per tab) plus a de-dupe map for in-flight requests, and automatic background prefetch of the adjacent (±1 day) dates after every load. Net effect: once a day has been seen (including via prefetch), revisiting it is instant with zero network round-trip.
+- Backend (`OpsDay.js`): replaced the `getRangeList`-of-many-single-rows read pattern with a single bulk bounding-range read (`getRange(minRow,1,maxRow-minRow+1,lastCol)`) + JS-side filtering. `getRangeList` has real per-range overhead in Apps Script that dominated over actual data volume.
+- **Important finding:** timed the plain `?action=ping` endpoint (touches nothing) and found it *also* takes 3-30+ seconds, with wide variance including one 29s call. This confirms a large chunk of the latency is inherent Apps Script web-app cold-start/dispatch overhead (V8 isolate spin-up, the double redirect through `script.googleusercontent.com`, etc.) — **not something fixable from inside the script.** The client-side cache + prefetch is the practical mitigation available; true "instant" cold loads aren't achievable on this platform without a different backend (e.g. a proper API server), which is a bigger architectural change, not attempted here.
+- Bumped the server-side `CacheService` TTL from 90s to 300s (client-side cache now handles session freshness; the longer shared cache mainly helps a second device/user hitting the same date).
+
+### Bigger finding while testing: a real duplicate-booking bug, found and fixed
+While spot-checking the sped-up backend, found a genuinely duplicated live booking (#359764592, "Isabela Carneiro", 2026-07-03 Sunrise Paddleboard Tour) — **two rows in Bookings with the identical Booking PK and UUID**, one from an early "unpaid" webhook event and one from a later "paid" event ~19 minutes apart, and correspondingly **two duplicate rows in Tours** for the same Availability PK (doubling the pax count from 2 to 4).
+
+**Root cause:** Apps Script does not serialize concurrent `doPost` executions. Given the extreme, measured latency variance of this web app (3-30+ seconds per call, confirmed above), two webhook deliveries for the same booking — even minutes apart by FareHarbor's clock — can have their actual script executions overlap in wall-clock time. Both executions' "does this Booking PK already have a row?" check can run before either has committed its write, so both conclude "no" and both append → duplicate.
+
+This directly relates to (and corrects) the assurance given the previous session about enabling all three webhook triggers: the *aggregation logic* (Tours recompute-from-scratch) was confirmed safe, but the *find-or-create write path itself* had this latent race, which just hadn't been observed live until now.
+
+**Fix (`Webhook.js`):** wrapped the whole `doPost` write path (writeRaw + writeBooking + updateTour) in `LockService.getScriptLock()` (25s wait, falls back to proceeding-without-lock + a logged error only in the extreme case it can't get one — chosen over dropping a real booking). This forces concurrent webhook deliveries to fully serialize, closing the race.
+
+**Cleanup:** deleted the stale ($0/unpaid) Bookings row and the duplicate Tours row for this one incident, then recomputed the remaining Tours row from scratch (`aggregateTour`) — now correctly shows 1 booking, 2 pax, $1,300.
+
+**Deployed:** same pinned live deployment ID, now at **@148**.
