@@ -43,7 +43,7 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
 .datebtn .d-day{font:700 20px/1 var(--sans);letter-spacing:-.4px}
 .datebtn .d-name{font:500 11.5px/1 var(--sans);color:var(--ink-soft);margin-top:4px}
 .datebtn .d-year{position:absolute;right:10px;bottom:8px;font:500 9px/1 var(--mono);letter-spacing:.5px;color:var(--ink-faint)}
-.datebtn #datepicker{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:none;cursor:pointer;padding:0}
+.datebtn #datepicker{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:none;cursor:pointer;padding:0;pointer-events:none}
 #refresh svg{transition:transform .5s}
 #refresh.spin svg{animation:spin .6s linear}
 .daytotals{margin-left:auto;display:flex;flex-direction:column;gap:5px;text-align:right;align-items:flex-end}
@@ -525,12 +525,8 @@ function openDatePicker() {
   if (datePicker.showPicker) { try { datePicker.showPicker(); return; } catch (err) {} }
   datePicker.click();
 }
-$('#datebtn').addEventListener('click', (e) => {
-  if (e.target === datePicker) return; // the input's own click already opens its picker
-  openDatePicker();
-});
+$('#datebtn').addEventListener('click', openDatePicker);
 $('#datebtn').addEventListener('keydown', (e) => {
-  if (e.target === datePicker) return;
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDatePicker(); }
 });
 datePicker.onchange = () => { if (datePicker.value) loadDay(datePicker.value); };
