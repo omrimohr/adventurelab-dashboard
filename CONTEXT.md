@@ -103,8 +103,21 @@ Use for:
 - [x] QBO Phase 3 logic (customer/product matching, quincena Invoice accumulation, payment recording) — COMPLETE, code only, redesigned 2026-06-22 from daily-invoice to quincena-accumulation model
 - [x] QBO OAuth2 — CONNECTED and posting successfully to the sandbox, full real approval chain verified end-to-end on real bookings (2026-06-23: 7/7 affiliates posted, 0 errors) as of 2026-06-24. The earlier "Google redirect interception" blocker turned out to be a different bug (missing `action=` on redirect), now fixed. A separate DocNumber-too-long bug (see session log below) also fixed.
 - [x] QBO sandbox automation — `morningRun` now auto-builds + auto-posts QBO staging for yesterday, daily at 4am Cancun, gated entirely by `CFG.SANDBOX_MODE` (see session log below). **Must flip to `false` before connecting a real production QBO company.**
+- [x] Security hardening (2026-07-02): API access key, webhook token, QBO secret moved to Script Properties + rotated, 13 stale deployments deleted — see "Security model" section below
+- [x] Server-side caching for `?action=data` (2026-07-02): ~15s → ~2.5s warm loads
 - [ ] Commercial corrections UI (edit gross/net/commission per booking) — pending
 - [ ] Coordinator limited view (Edder & Jesus) — future
+- [ ] Username + PIN login per person (replaces shared access key entry; enables coordinator limited view) — planned
+
+## Security model (added 2026-07-02 — READ THIS before touching API.js, Webhook.js, or QBO.js)
+
+- **API key:** every `doGet` action EXCEPT `ping` and `oauth_callback` requires `&key=<DASHBOARD_KEY>`. Unauthorized calls get `{"status":"error","message":"Unauthorized"}`. Check lives at the top of `doGet` (API.js); helpers `isAuthorizedRequest`/`isKeyEnforced` in Helpers.js.
+- **Dashboard pages** (`index.html`, `ops.html`) prompt once per device for the key and keep it in `localStorage['al_access_key']`; every API call goes through `apiUrl()`. The key is NOT in the repo (repo is public!) — never hardcode it.
+- **Webhook token:** FareHarbor posts to `.../exec?token=<WEBHOOK_TOKEN>`; `doPost` (Webhook.js) rejects other POSTs.
+- **QBO credentials** read from Script Properties via `getQBOClientCreds()` (QBO.js). The old hardcoded client secret was rotated 2026-07-02 and is dead. OAuth redirect URI now points at the main deployment (old one was deleted).
+- **Script Properties in use:** `DASHBOARD_KEY`, `DASHBOARD_KEY_ENFORCE`, `WEBHOOK_TOKEN`, `WEBHOOK_ENFORCE`, `QBO_CLIENT_ID`, `QBO_CLIENT_SECRET`, plus existing `QBO_*` token properties. Setting either `*_ENFORCE` property to anything but `'true'` instantly disables that block (rollback switch, no deploy needed).
+- **Deployments:** exactly 2 should exist — the pinned live one (`AKfycbxnEEtwt...`, used by dashboard AND FareHarbor) and @HEAD for testing. 13 stale debug deployments were deleted 2026-07-02 because each served old, un-secured code. Don't create new long-lived deployments; redeploy the pinned ID (`clasp deploy -i AKfycbxnEEtwt... -d "description"`).
+- **`data` caching:** `?action=data` responses are cached ~5 min in CacheService (chunked — payload is ~1.1MB, over the 100KB/key cap; see `getCachedDashboardJSON`/`putCachedDashboardJSON` in Helpers.js). Any non-read action and every processed webhook clears it (`clearDashboardCache`). If you add a new READ action, add it to `READ_ONLY_ACTIONS` in API.js doGet; new WRITE actions need nothing (cache clears by default).
 
 ### Session log (2026-06-11)
 - Fixed revenue calc bugs: Commission = Gross - Net (Tax no longer subtracted); Gross = invoice_price when it exceeds receipt_total (Habitas/Mia/Solana).
@@ -688,3 +701,22 @@ This directly relates to (and corrects) the assurance given the previous session
 **Cleanup:** deleted the stale ($0/unpaid) Bookings row and the duplicate Tours row for this one incident, then recomputed the remaining Tours row from scratch (`aggregateTour`) — now correctly shows 1 booking, 2 pax, $1,300.
 
 **Deployed:** same pinned live deployment ID, now at **@148**.
+
+---
+
+## Session log (2026-07-02, evening) — Security hardening + data caching (Claude Code)
+
+Full project review, then 6-task security/performance plan executed (plan saved at `D:\adventure-lab\docs\superpowers\plans\2026-07-02-security-and-caching.md`):
+
+1. **API locked with access key** — doGet requires `&key=` (Script Property `DASHBOARD_KEY`); dashboard pages prompt once per device and store it in localStorage. Rolled out in log-only mode first, then enforced; verified blocked/allowed/public paths live.
+2. **13 stale deployments deleted** — each was a live URL serving old, keyless code. Only the pinned live deployment + @HEAD remain. FareHarbor confirmed to use the pinned URL before deletion.
+3. **QBO client secret** moved from QBO.js source to Script Properties (`getQBOClientCreds()`), then rotated at Intuit — the leaked-in-source secret is dead. Dead OAuth redirect URI (pointed at a deleted deployment) fixed to the pinned deployment and registered at Intuit.
+4. **Webhook token** — doPost requires `?token=` (Script Property `WEBHOOK_TOKEN`); Omri updated the FareHarbor webhook URL himself; verified with live test booking #359831148, then enforced and verified rejects.
+5. **Server-side caching for `?action=data`** — chunked CacheService (payload 1.1MB > 100KB/key cap), TTL 300s, invalidated by webhook and any non-read action. Measured: cold ~13-15s → warm ~2.5s, byte-identical payloads, invalidation verified live.
+6. **Cleanup** — stale root-level scratch files (`qbo_direct.js`, `run_qbo_test.js`, `browser_args.json`) deleted (contained dead deployment URLs, no secrets).
+
+**Known issue found (not fixed):** `?action=data` returns only 500 bookings and the window is NOT the newest rows (newest "Webhook Received" seen was weeks old while newer bookings exist in the sheet). Didn't matter for the dashboard so far, but worth checking `getAllDashboardData()`'s row selection/sort logic in a future session.
+
+**Deployed:** pinned deployment now at **@152**. Dashboard repo commits: access-key frontend + this CONTEXT.md update.
+
+**Next steps (agreed with Omri):** username + PIN login per person (fast entry, enables coordinator limited view); file splitting (index.html 91KB, QBO.js 103KB) as a separate plan.
