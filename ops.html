@@ -223,6 +223,30 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
 // ============================================================
 const API = 'https://script.google.com/macros/s/AKfycbxnEEtwt_cysahiCnd1PQvXJdmaq19obsvs5EDJIm8DvJv9PjLFmCFwnXLhoT_qcB2yHA/exec';
 
+// ── Access key ──
+// Entered once per device, kept in localStorage, sent with every API
+// call. Never hardcode the key here — this repo is public.
+const KEY_STORE = 'al_access_key';
+function getAccessKey(){
+  let k = localStorage.getItem(KEY_STORE);
+  while(!k){
+    k = (prompt('Adventure Lab — clave de acceso / enter access key:')||'').trim();
+    if(k) localStorage.setItem(KEY_STORE, k);
+  }
+  return k;
+}
+function apiUrl(query){
+  return API + query + (query.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(getAccessKey());
+}
+function handleUnauthorized(json){
+  if(json && json.status==='error' && json.message==='Unauthorized'){
+    localStorage.removeItem(KEY_STORE);
+    alert('Clave de acceso incorrecta — recarga la página e intenta de nuevo.');
+    return true;
+  }
+  return false;
+}
+
 // ── State ──
 let DAY = null;       // current day payload
 let currentDate = ''; // YYYY-MM-DD
@@ -290,10 +314,10 @@ const inFlight = new Map(); // dateStr -> Promise (de-dupes concurrent fetches)
 function fetchDay(dateStr, forceRefresh) {
   if (!forceRefresh && dayCache.has(dateStr)) return Promise.resolve(dayCache.get(dateStr));
   if (!forceRefresh && inFlight.has(dateStr)) return inFlight.get(dateStr);
-  const url = API + '?action=ops_day&date=' + dateStr + (forceRefresh ? '&refresh=1' : '');
+  const url = apiUrl('?action=ops_day&date=' + dateStr + (forceRefresh ? '&refresh=1' : ''));
   const p = fetch(url)
     .then(resp => { if (!resp.ok) throw new Error('HTTP ' + resp.status); return resp.json(); })
-    .then(data => { if (data.error) throw new Error(data.error); dayCache.set(dateStr, data); inFlight.delete(dateStr); return data; })
+    .then(data => { if (handleUnauthorized(data)) throw new Error('Unauthorized'); if (data.error) throw new Error(data.error); dayCache.set(dateStr, data); inFlight.delete(dateStr); return data; })
     .catch(err => { inFlight.delete(dateStr); throw err; });
   inFlight.set(dateStr, p);
   return p;

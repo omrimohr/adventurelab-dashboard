@@ -658,6 +658,30 @@ const API       = 'https://script.google.com/macros/s/AKfycbxnEEtwt_cysahiCnd1PQ
 const CACHE_KEY = 'al_data_v7';
 const CACHE_TTL = 3 * 60 * 1000;
 
+// ── ACCESS KEY ─────────────────────────────────────
+// Entered once per device, kept in localStorage, sent with every API
+// call. Never hardcode the key here — this repo is public.
+const KEY_STORE = 'al_access_key';
+function getAccessKey(){
+  let k = localStorage.getItem(KEY_STORE);
+  while(!k){
+    k = (prompt('Adventure Lab — enter access key / clave de acceso:')||'').trim();
+    if(k) localStorage.setItem(KEY_STORE, k);
+  }
+  return k;
+}
+function apiUrl(query){
+  return API + query + (query.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(getAccessKey());
+}
+function handleUnauthorized(json){
+  if(json && json.status==='error' && json.message==='Unauthorized'){
+    localStorage.removeItem(KEY_STORE);
+    alert('Clave de acceso incorrecta — recarga la página e intenta de nuevo. / Access key incorrect — reload and try again.');
+    return true;
+  }
+  return false;
+}
+
 // ── STATE ──────────────────────────────────────────
 let D           = null;
 let currentMonth= new Date().getMonth();
@@ -711,16 +735,19 @@ function daysPending(dateStr){
 
 // ── FETCH ──────────────────────────────────────────
 async function apiCall(action,params={}){
-  const url=API+'?action='+action+'&'+new URLSearchParams(params);
+  const url=apiUrl('?action='+action+'&'+new URLSearchParams(params));
   const r=await fetch(url);
-  return r.json();
+  const j=await r.json();
+  if(handleUnauthorized(j))throw new Error('Unauthorized');
+  return j;
 }
 
 async function loadAll(force=false){
   if(!force){const c=getCache();if(c){D=c;renderAll();return;}}
   try{
-    const r=await fetch(API+'?action=data');
+    const r=await fetch(apiUrl('?action=data'));
     const j=await r.json();
+    if(handleUnauthorized(j))return;
     if(j.status==='ok'){D=j;setCache(D);renderAll();setConn(true);}
   }catch(e){
     const c=getCache(true);
