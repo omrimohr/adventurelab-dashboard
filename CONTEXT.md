@@ -4,6 +4,20 @@ Read this file at the start of every session before doing anything.
 
 ---
 
+## Use graphify before reading source files (token savings)
+
+`graphify-out/graph.json` holds a prebuilt knowledge graph of this repo (code + docs, 288 nodes / 935 edges as of the last build). Before reading raw files to understand how something works, how pieces connect, or which files are involved:
+
+1. Run `graphify query "<question>"` — answers from the graph instead of you re-reading whole files.
+2. Or `graphify explain "<concept>"` for a plain-language summary of one node.
+3. Or `graphify path "<A>" "<B>"` to see how two things connect.
+
+Only fall back to reading raw files to inspect/modify specific lines, or when the graph doesn't cover the question. This applies to subagents too — include the instruction in any subagent prompt that involves code exploration.
+
+After changing code, run `graphify . --update` to refresh the graph (code re-extracts for free, no AI cost).
+
+---
+
 ## Who I Am
 
 **Owner:** Omri Mohr  
@@ -720,3 +734,19 @@ Full project review, then 6-task security/performance plan executed (plan saved 
 **Deployed:** pinned deployment now at **@152**. Dashboard repo commits: access-key frontend + this CONTEXT.md update.
 
 **Next steps (agreed with Omri):** username + PIN login per person (fast entry, enables coordinator limited view); file splitting (index.html 91KB, QBO.js 103KB) as a separate plan.
+
+---
+
+## Session log (2026-07-03/04) — Duplicate cleanup, self-audit watchdog, Ops UI polish (Claude Code)
+
+**Part 1 — July duplicate cleanup (Audit.js, new file):** the pre-2026-07-02 webhook race left duplicate rows. Added `?action=audit_duplicates` (read-only scan, `?since=` filter) and `?action=fix_duplicates` (keeps last row per Booking PK / first per Availability PK, recomputes affected tours; `?keep=PK:status_or_gross` and `?skip=PK` for disagreeing pairs). Cleaned 12 duplicated bookings + 2 phantom tour cards for July; owner adjudicated 3 disagreeing pairs (kept booked/$1099.95/$1100/$5670). Zero duplicates remain since July 1.
+
+**Part 2 — self-audit watchdog:** `dailyDuplicateAudit()` runs at the top of `morningRun` (isolated try/catch), writes any duplicates to the Error Log tab (14-day lookback). New reads: `?action=errors` (recent Error Log rows, newest first) and `?action=audit_run_watchdog` (run now). Purpose: errors accumulate in the sheet; review + fix them together at session start. **Note:** watchdog will flag pre-July dups for ~2 more weeks until they age out of the 14-day window (owner said leave pre-July data alone).
+
+**Part 3 — Ops day-view UI (`ops.html`):** compact single-line money strip (was 3 big boxes); small "IVA incl." shown when a tour has IVA (new `iva` field exposed from Tours "Total IVA (MXN)" via OpsDay.js — display only, does not affect bruto/net); cancelled tours (all bookings cancelled) gray out with CANCELADO badge + disabled Aprobar; boat/pax icons color-coded (teal=sailing, blue=motor, amber=kayak/SUP); crew moved to its own dedicated line; smaller crew tags; smaller Aprobar button.
+
+**Finding surfaced by the new error log:** QBO posting fails repeatedly with "Invalid Line TaxCode… Valid line TaxCodes for US should be TAX or NON. Supplied value: 4" — the sandbox is a US company rejecting the Mexican IVA code. Fix when connecting the real production QBO company.
+
+**Next planned step:** wire the ops "Reportar información incorrecta" form (text + Cámara/Subir imagen) to the backend — currently the save is stubbed and no photos are stored. Valentin is already producing photos/content the owner needs to see; match his storage format. Photos likely → Google Drive with a link in a sheet tab.
+
+**Deployments:** apps-script pinned deployment now at @156. Deleted stale doc `Claude_Code_Prompt_QBO_Integration.md`.
