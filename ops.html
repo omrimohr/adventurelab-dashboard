@@ -94,24 +94,42 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
 .t-meta .mi{display:inline-flex;align-items:center;gap:5px}
 .t-meta .mi svg{opacity:.7;flex:none}
 .t-meta .mi b{color:var(--ink);font-weight:600}
-.crole-tag{display:inline-block;font:600 9.5px/1 var(--mono);letter-spacing:.5px;text-transform:uppercase;background:var(--ink);color:#EAF3F2;padding:3px 6px;border-radius:5px;vertical-align:1px;margin-right:2px}
+.crole-tag{display:inline-block;font:600 8px/1 var(--mono);letter-spacing:.4px;text-transform:uppercase;background:var(--surface-2);color:var(--ink-soft);border:1px solid var(--line);padding:2px 5px;border-radius:4px;vertical-align:1px;margin-right:1px}
 .flags{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
 .flag{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;padding:3px 8px;border-radius:99px;background:var(--amber-wash);color:#9A5E08}
 .flag.red{background:var(--red-wash);color:#B42A2E}
 .flag svg{flex:none}
-.tmoney{display:flex;gap:8px;margin-top:11px}
-.tm{flex:1;text-align:center;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:9px;padding:8px 6px}
-.tm .k{font:600 9px/1 var(--mono);letter-spacing:1px;color:var(--ink-faint)}
-.tm .v{font:600 15px/1 var(--mono);margin-top:5px;letter-spacing:-.2px}
-.tm.net{background:var(--teal-wash);border-color:#CDEBDF}.tm.net .v{color:var(--teal-deep)}
+/* Compact money strip — single slim line instead of 3 big boxes */
+.tmoney{display:flex;align-items:baseline;gap:16px;margin-top:10px;padding:8px 12px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:9px;flex-wrap:wrap}
+.tm{display:flex;align-items:baseline;gap:6px}
+.tm .k{font:600 8.5px/1 var(--mono);letter-spacing:1px;color:var(--ink-faint)}
+.tm .v{font:600 14px/1 var(--mono);letter-spacing:-.2px}
+.tm.net .k{color:var(--teal-deep)}.tm.net .v{color:var(--teal-deep)}
+.tm.iva{margin-left:auto}
+.tm.iva .k,.tm.iva .v{color:var(--ink-faint);font-weight:500;font-size:10px}
+
+/* Colored meta icons — quick visual scan of pax / boat type */
+.t-meta .ic{display:inline-flex;align-items:center}
+.t-meta .ic svg{opacity:1}
+.t-meta .ic.pax{color:var(--blue)}
+.t-meta .ic.crew{color:#8B7BC4}
+.t-crew{margin-top:5px}
+
+/* Cancelled tour — grayed out and clearly marked */
+.tour.cancelled{opacity:.6;filter:grayscale(.45)}
+.tour.cancelled .tour-bar{background:var(--ink-faint)}
+.tour.cancelled .hour{background:var(--ink-faint)}
+.cancel-badge{font:600 9px/1 var(--mono);letter-spacing:1px;color:#B42A2E;background:var(--red-wash);border:1px solid #F3C9CB;padding:5px 7px;border-radius:7px;flex:none}
 .tactions{display:flex;align-items:center;gap:8px;margin-top:12px}
 .iconbtn{width:44px;height:44px;flex:none;border:1px solid var(--line);background:var(--surface);border-radius:10px;display:grid;place-items:center;cursor:pointer;color:var(--ink-soft);text-decoration:none;transition:background .12s}
 .iconbtn:active{background:var(--surface-2)}
 .iconbtn.dashed{border-style:dashed}
-.approve{appearance:none;border:none;cursor:pointer;font-family:var(--sans);font-weight:600;font-size:14px;padding:12px 18px;border-radius:10px;background:var(--ink);color:#fff;letter-spacing:.1px;flex:1 1 auto;display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:transform .1s,background .15s}
+.approve{appearance:none;border:none;cursor:pointer;font-family:var(--sans);font-weight:600;font-size:13px;padding:11px 22px;border-radius:10px;background:var(--ink);color:#fff;letter-spacing:.1px;flex:0 0 auto;margin-left:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:transform .1s,background .15s}
 .approve:active{transform:scale(.97)}
 .approve.done{background:var(--teal-wash);color:var(--teal-deep);box-shadow:inset 0 0 0 1px #BFE7D8}
 .approve.done:active{transform:none}
+.approve:disabled{background:var(--line);color:var(--ink-faint);cursor:not-allowed}
+.approve:disabled:active{transform:none}
 
 /* Expand */
 .detail{display:none;border-top:1px solid var(--line-soft);margin-top:13px;padding-top:4px}
@@ -382,14 +400,24 @@ function renderBooking(b, tid, i) {
   </div>`;
 }
 
+function boatColor(name, rec) {
+  const s = ((name||'') + ' ' + (rec||'')).toLowerCase();
+  if (/vela|sail|catamaran|monocasco|monohull|hobie|velero/.test(s)) return 'var(--teal)';
+  if (/boat|ponton|pontón|lancha|motor|ramona|carmelita|funday/.test(s)) return 'var(--blue)';
+  if (/kayak|paddle|sup|tabla/.test(s)) return 'var(--amber)';
+  return 'var(--ink-faint)';
+}
+
 function renderTour(t) {
   const flags = t.flags.map(f => `<span class="flag ${f.sev==='red'?'red':''}">${ICON.flag}${f.t}</span>`).join('');
   const crew = t.crew.map(c => c.role ? `<span class="crole-tag">${c.role}</span> ${c.name}` : c.name).join(' · ');
   const resv = t.bookings.map((b,i) => renderBooking(b, t.id, i)).join('');
   const id = t.id;
+  const cancelled = t.bookings.length > 0 && t.bookings.every(b => b.cancelled);
   const fhBtn = t.fh_url ? `<a class="iconbtn" title="FareHarbor" href="${t.fh_url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${ICON.fh}</a>` : '';
+  const ivaBit = t.iva > 0 ? `<div class="tm iva"><span class="k">IVA incl.</span><span class="v">${money(t.iva)}</span></div>` : '';
   return `
-  <div class="tour ${t.ops_approved?'ops-ok':''}" id="tour-${id}">
+  <div class="tour ${t.ops_approved?'ops-ok':''} ${cancelled?'cancelled':''}" id="tour-${id}">
     <div class="tour-bar"></div>
     <div class="tour-body">
       <div class="t-row1" onclick="toggle('${id}')" role="button" tabindex="0"
@@ -398,24 +426,27 @@ function renderTour(t) {
         <span class="name">${t.name}</span>
         <span class="avail-tag">#${t.availability_pk}</span>
         <span class="tcorr-mark" title="Corrección reportada">${ICON.pencil}</span>
-        <span class="lights">${light(t.ops_approved,'OPS')}${light(t.com_approved,'COM')}</span>
+        ${cancelled
+          ? `<span class="cancel-badge">CANCELADO</span>`
+          : `<span class="lights">${light(t.ops_approved,'OPS')}${light(t.com_approved,'COM')}</span>`}
         <span class="chev">${ICON.chev}</span>
       </div>
       <div class="t-meta" onclick="toggle('${id}')">
-        <span class="mi">${ICON.pax}<b>${t.pax}</b> pax</span>
-        <span class="mi">${ICON.rec}${t.recurso}</span>
-        ${crew ? `<span class="mi">${ICON.crew}${crew}</span>` : ''}
+        <span class="mi"><span class="ic pax">${ICON.pax}</span><b>${t.pax}</b> pax</span>
+        <span class="mi"><span class="ic" style="color:${boatColor(t.name,t.recurso)}">${ICON.rec}</span>${t.recurso}</span>
       </div>
+      ${crew ? `<div class="t-meta t-crew" onclick="toggle('${id}')"><span class="mi"><span class="ic crew">${ICON.crew}</span>${crew}</span></div>` : ''}
       ${flags?`<div class="flags">${flags}</div>`:''}
       <div class="tmoney">
-        <div class="tm"><div class="k">BRUTO</div><div class="v">${money(t.gross)}</div></div>
-        <div class="tm"><div class="k">COMISIÓN</div><div class="v">${money(t.commission)}</div></div>
-        <div class="tm net"><div class="k">NETO</div><div class="v">${money(t.net)}</div></div>
+        <div class="tm"><span class="k">BRUTO</span><span class="v">${money(t.gross)}</span></div>
+        <div class="tm"><span class="k">COM</span><span class="v">${money(t.commission)}</span></div>
+        <div class="tm net"><span class="k">NETO</span><span class="v">${money(t.net)}</span></div>
+        ${ivaBit}
       </div>
       <div class="tactions">
         <div class="iconbtn dashed" title="Gastos / Inventario" onclick="event.stopPropagation()">${ICON.gastos}</div>
         ${fhBtn}
-        <button class="approve ${t.ops_approved?'done':''}" id="ap-${id}" onclick="approve('${id}')">${t.ops_approved?'✓ Aprobado':'Aprobar'}</button>
+        <button class="approve ${t.ops_approved?'done':''}" id="ap-${id}" onclick="approve('${id}')"${cancelled?' disabled':''}>${cancelled?'Cancelado':(t.ops_approved?'✓ Aprobado':'Aprobar')}</button>
       </div>
       <div class="detail">
         ${t.notes?`<div class="tour-note">${ICON.note}<span>${t.notes}</span></div>`:''}
