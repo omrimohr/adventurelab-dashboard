@@ -750,3 +750,25 @@ Full project review, then 6-task security/performance plan executed (plan saved 
 **Next planned step:** wire the ops "Reportar información incorrecta" form (text + Cámara/Subir imagen) to the backend — currently the save is stubbed and no photos are stored. Valentin is already producing photos/content the owner needs to see; match his storage format. Photos likely → Google Drive with a link in a sheet tab.
 
 **Deployments:** apps-script pinned deployment now at @156. Deleted stale doc `Claude_Code_Prompt_QBO_Integration.md`.
+
+---
+
+## Session log (2026-07-04) — "Reportar información incorrecta" wired to backend (Claude Code)
+
+**Goal:** the ops day-view correction form (free text + optional photo) was stubbed client-side. Wired it so submissions persist and show back on the card. Separate from the structured `saveBookingCorrection` (pax/gross/net edits) — this is the free-text + photo *report* Valentín/coordinators use.
+
+**Storage:**
+- New **"Reportes"** sheet tab (append-only): Timestamp, Tour Date, Availability PK, Tour, Reporte, Foto (Drive link), Foto Nombre, Estado (default `Nuevo`), Reportado Por (blank until username/PIN login exists).
+- New **"Reportes Ops"** Drive folder; photos set to *anyone-with-link view*; filename `YYYY-MM-DD_<availPK>_<shortTourName>.jpg`. Folder id cached in Script Property **`REPORTES_FOLDER_ID`** (never hardcoded).
+
+**Backend (`Reports.js`, new):** `saveOpsReport(data)`, `getReportsForDate(dateStr)` (grouped by Availability PK, newest-first, formats Timestamp Date cells back to `yyyy-MM-dd HH:mm`), `getReportesFolder_()`. `Config.js` gained `SHEETS.REPORTES` + `COLS.REPORTES`. `doPost` (`Webhook.js`) now branches: `action=save_report` → key-gated (`isAuthorizedRequest`) → `saveOpsReport`, returns `respondJSON`; otherwise falls through to the FareHarbor webhook (token-gated). `OpsDay.js` reads reports once per day and attaches a `reports` array to each tour by Availability PK.
+
+**Manifest:** added OAuth scope `https://www.googleapis.com/auth/drive` (was only `spreadsheets.currentonly`) so DriveApp can create the folder/photos; owner re-authorized once via the editor.
+
+**Frontend (`ops.html`):** photo is downscaled client-side (≤1600px, JPEG 0.8) → base64 → POST as **`Content-Type: text/plain`** (a CORS "simple request" — `application/json` would trigger a preflight `OPTIONS` Apps Script can't answer) to `?action=save_report&key=<DASHBOARD_KEY>`. Reports render as text + a **clickable file-name link** (📎 filename → Drive, opens new tab) — NOT an embedded image (owner preference). Text required, photo optional, multiple reports per tour (newest-first). Removed the old single-`correction` stub + `corrEdit`.
+
+**Verified:** editor run of `testSaveOpsReport` → both saves `{"status":"ok"}`, photo stored in Drive with a shareable link, readback newest-first. Live `doPost` routing confirmed via curl (`{"status":"error","message":"Unauthorized"}` for a bad key). Frontend functions/rendering checked in preview (no JS errors). Test rows/file cleaned from the Reportes tab + Reportes Ops folder afterward.
+
+**Deployments:** apps-script pinned deployment now at **@158**. Dashboard repo: `ops.html` updated (push to Pages for coordinators).
+
+**Out of scope (future):** reporter identity (waits on login), edit/delete a report from the UI (edit the sheet), inline photo rendering (link-only by choice).

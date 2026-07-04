@@ -83,6 +83,11 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
 .t-row1 .name{font-weight:600;font-size:15.5px;letter-spacing:-.1px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tcorr-mark{display:none;flex:none;color:var(--amber)}
 .tour.has-corr .tcorr-mark{display:inline-flex}
+.corr-saved-list{display:flex;flex-direction:column;gap:8px}
+.corr-item{border-left:2px solid var(--amber);padding-left:8px}
+.corr-file{display:inline-block;margin-top:2px;font-size:12px;color:var(--teal);text-decoration:none}
+.corr-file:hover{text-decoration:underline}
+.corr-ts{display:block;font-size:10px;opacity:.6;margin-top:2px}
 .lights{display:flex;gap:5px;flex:none}
 .light{display:inline-flex;align-items:center;gap:4px;font:600 9.5px/1 var(--mono);letter-spacing:.7px;padding:5px 7px;border-radius:7px;border:1px solid var(--line);color:var(--ink-faint);background:var(--surface-2)}
 .light.on{background:var(--teal-wash);border-color:#BFE7D8;color:var(--teal-deep)}
@@ -408,6 +413,17 @@ function boatColor(name, rec) {
   return 'var(--ink-faint)';
 }
 
+function reportsHtml(reports) {
+  if (!reports || !reports.length) return '<p class="corr-saved-text">(sin reportes)</p>';
+  return reports.map(r => {
+    const link = r.photo_url
+      ? `<a class="corr-file" href="${r.photo_url}" target="_blank" rel="noopener">📎 ${r.photo_name || 'foto'}</a>`
+      : '';
+    const ts = r.timestamp ? `<span class="corr-ts">${r.timestamp}</span>` : '';
+    return `<div class="corr-item"><p class="corr-saved-text">${(r.text||'').replace(/</g,'&lt;')}</p>${link}${ts}</div>`;
+  }).join('');
+}
+
 function renderTour(t) {
   const flags = t.flags.map(f => `<span class="flag ${f.sev==='red'?'red':''}">${ICON.flag}${f.t}</span>`).join('');
   const crew = t.crew.map(c => c.role ? `<span class="crole-tag">${c.role}</span> ${c.name}` : c.name).join(' · ');
@@ -417,7 +433,7 @@ function renderTour(t) {
   const fhBtn = t.fh_url ? `<a class="iconbtn" title="FareHarbor" href="${t.fh_url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${ICON.fh}</a>` : '';
   const ivaBit = t.iva > 0 ? `<div class="tm iva"><span class="k">IVA incl.</span><span class="v">${money(t.iva)}</span></div>` : '';
   return `
-  <div class="tour ${t.ops_approved?'ops-ok':''} ${cancelled?'cancelled':''}" id="tour-${id}">
+  <div class="tour ${t.ops_approved?'ops-ok':''} ${cancelled?'cancelled':''} ${(t.reports&&t.reports.length)?'has-corr':''}" id="tour-${id}">
     <div class="tour-bar"></div>
     <div class="tour-body">
       <div class="t-row1" onclick="toggle('${id}')" role="button" tabindex="0"
@@ -453,7 +469,7 @@ function renderTour(t) {
         <div class="resv-hdr"><span class="t">RESERVACIONES · ${t.bookings.length}</span><span class="rule"></span></div>
         ${resv}
         <div class="corr-section">
-          <button class="corr-open" id="corr-open-${id}" onclick="corrOpen('${id}')">${ICON.pencil} Reportar información incorrecta</button>
+          <button class="corr-open" id="corr-open-${id}" onclick="corrOpen('${id}')"${(t.reports&&t.reports.length)?' style="display:none"':''}>${ICON.pencil} Reportar información incorrecta</button>
           <div class="corr-form" id="corr-form-${id}">
             <p class="corr-desc">Describe qué dato está mal y adjunta una captura de FareHarbor con la información correcta. Si el error también está en FareHarbor, corrígelo ahí mismo.</p>
             <textarea id="corr-ta-${id}" placeholder="¿Qué información es incorrecta?"></textarea>
@@ -467,10 +483,10 @@ function renderTour(t) {
               <button onclick="corrCancel('${id}')">Cancelar</button>
             </div>
           </div>
-          <div class="corr-saved" id="corr-saved-${id}">
-            <div class="corr-saved-head">${ICON.pencil} CORRECCIÓN REPORTADA<button class="corr-edit" onclick="corrEdit('${id}')">Editar</button></div>
-            <p class="corr-saved-text" id="corr-saved-text-${id}"></p>
-            <img class="corr-saved-photo" id="corr-saved-photo-${id}">
+          <div class="corr-saved ${(t.reports&&t.reports.length)?'show':''}" id="corr-saved-${id}">
+            <div class="corr-saved-head">${ICON.pencil} REPORTES</div>
+            <div class="corr-saved-list" id="corr-saved-list-${id}">${reportsHtml(t.reports)}</div>
+            <button class="corr-edit" onclick="corrOpen('${id}')">Reportar otro</button>
           </div>
         </div>
       </div>
@@ -526,14 +542,12 @@ function approve(id) {
 // ── Corrections ──
 function showForm(id) { $('#corr-form-'+id).classList.add('show'); $('#corr-open-'+id).style.display='none'; $('#corr-saved-'+id).classList.remove('show'); }
 function corrOpen(id) {
-  const t = DAY.tours.find(x => x.id===id);
-  $('#corr-ta-'+id).value = t.correction?.text || '';
-  pending[id] = t.correction?.photo || null;
+  $('#corr-ta-'+id).value = '';
+  pending[id] = null;
   renderPreview(id);
   showForm(id);
   $('#corr-ta-'+id).focus();
 }
-function corrEdit(id) { corrOpen(id); }
 function onPhoto(input, id) {
   const f = input.files && input.files[0]; if (!f) return;
   const rd = new FileReader();
@@ -545,25 +559,88 @@ function renderPreview(id) {
   if (pending[id]) { img.src = pending[id]; wrap.classList.add('show'); } else { img.removeAttribute('src'); wrap.classList.remove('show'); }
 }
 function corrRmPhoto(id) { pending[id] = null; renderPreview(id); }
-function corrSave(id) {
+
+// Downscale a data-URL image to <=1600px longest edge, JPEG 0.8.
+// Returns { base64, mime } (base64 has no data: prefix).
+function downscalePhoto(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1600;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      const out = c.toDataURL('image/jpeg', 0.8);
+      resolve({ base64: out.split(',')[1], mime: 'image/jpeg' });
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+
+async function corrSave(id) {
   const text = $('#corr-ta-'+id).value.trim();
-  if (!text && !pending[id]) return;
+  if (!text) { alert('Escribe qué información es incorrecta.'); return; }
   const t = DAY.tours.find(x => x.id === id);
-  t.correction = { text, photo: pending[id] || null, edited: !!t.correction };
-  // TODO: POST correction to API when wired
-  // fetch(API + '?action=ops_save_correction', { method:'POST', body: JSON.stringify({...}) });
-  $('#corr-saved-text-'+id).textContent = text || '(sin descripción)';
-  const ph = $('#corr-saved-photo-'+id);
-  if (t.correction.photo) { ph.src = t.correction.photo; ph.style.display = 'block'; } else { ph.style.display = 'none'; }
-  $('#corr-form-'+id).classList.remove('show');
-  $('#corr-saved-'+id).classList.add('show');
-  $('#corr-open-'+id).style.display = 'none';
-  $('#tour-'+id).classList.add('has-corr');
+  const btn = $('#corr-form-'+id).querySelector('.save');
+  const prev = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Guardando…';
+
+  const body = {
+    availability_pk: t.availability_pk,
+    tour_date: currentDate,
+    tour_name: t.name,
+    text,
+  };
+  if (pending[id]) {
+    try {
+      const ph = await downscalePhoto(pending[id]);
+      body.photo_base64 = ph.base64;
+      body.photo_mime = ph.mime;
+    } catch (e) { /* photo failed to process — send text only */ }
+  }
+
+  try {
+    const res = await fetch(apiUrl('?action=save_report'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    if (handleUnauthorized(json)) return;
+    if (!json || json.status !== 'ok') throw new Error(json && json.message || 'error');
+
+    // Optimistically prepend to the tour's reports and re-render the list.
+    t.reports = t.reports || [];
+    t.reports.unshift({
+      text,
+      photo_url: '',           // link appears after next day reload
+      photo_name: body.photo_base64 ? 'foto adjunta' : '',
+      timestamp: 'ahora',
+    });
+    $('#corr-saved-list-'+id).innerHTML = reportsHtml(t.reports);
+    $('#corr-ta-'+id).value = '';
+    pending[id] = null; renderPreview(id);
+    $('#corr-form-'+id).classList.remove('show');
+    $('#corr-saved-'+id).classList.add('show');
+    $('#corr-open-'+id).style.display = 'none';
+    $('#tour-'+id).classList.add('has-corr');
+  } catch (e) {
+    alert('Error al guardar — reintentar. ' + (e.message||''));
+  } finally {
+    btn.disabled = false; btn.textContent = prev;
+  }
 }
 function corrCancel(id) {
   const t = DAY.tours.find(x => x.id === id);
+  pending[id] = null; renderPreview(id);
   $('#corr-form-'+id).classList.remove('show');
-  if (t.correction) { $('#corr-saved-'+id).classList.add('show'); }
+  if (t.reports && t.reports.length) { $('#corr-saved-'+id).classList.add('show'); }
   else { $('#corr-open-'+id).style.display = 'flex'; }
 }
 
