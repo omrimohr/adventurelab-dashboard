@@ -79,7 +79,7 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
 .tour-body{padding:12px 13px}
 .t-row1{display:flex;align-items:center;gap:9px;cursor:pointer}
 .hour{font:600 12px/1 var(--mono);letter-spacing:.5px;background:var(--ink);color:#EAF3F2;padding:6px 8px;border-radius:7px;flex:none}
-.avail-tag{font:500 10px/1 var(--mono);color:var(--ink-faint);flex:none}
+.avail-tag{font:500 10px/1 var(--mono);color:var(--ink-soft);flex:none}
 .t-row1 .name{font-weight:600;font-size:15.5px;letter-spacing:-.1px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tcorr-mark{display:none;flex:none;color:var(--amber)}
 .tour.has-corr .tcorr-mark{display:inline-flex}
@@ -99,7 +99,7 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
 .t-meta .mi{display:inline-flex;align-items:center;gap:5px}
 .t-meta .mi svg{opacity:.7;flex:none}
 .t-meta .mi b{color:var(--ink);font-weight:600}
-.crole-tag{display:inline-block;font:600 8px/1 var(--mono);letter-spacing:.4px;text-transform:uppercase;background:var(--surface-2);color:var(--ink-soft);border:1px solid var(--line);padding:2px 5px;border-radius:4px;vertical-align:1px;margin-right:1px}
+.crole-tag{display:inline-block;font:600 8px/1 var(--mono);letter-spacing:.4px;text-transform:uppercase;background:#EAF1F1;color:#3E565B;border:1px solid #C9D9D9;padding:2px 5px;border-radius:4px;vertical-align:1px;margin-right:1px}
 .flags{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
 .flag{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;padding:3px 8px;border-radius:99px;background:var(--amber-wash);color:#9A5E08}
 .flag.red{background:var(--red-wash);color:#B42A2E}
@@ -112,6 +112,18 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
 .tm.net .k{color:var(--teal-deep)}.tm.net .v{color:var(--teal-deep)}
 .tm.iva{margin-left:auto}
 .tm.iva .k,.tm.iva .v{color:var(--ink-faint);font-weight:500;font-size:10px}
+.pct{font:500 10px/1 var(--mono);color:var(--ink-faint)}
+.t-updated{margin-top:8px;font:500 10px/1 var(--mono);color:var(--ink-faint)}
+.resv-notes{margin-top:7px;font-size:12.5px;color:var(--ink-soft)}
+.resv-notes b{font:600 9px/1 var(--mono);letter-spacing:.8px;color:var(--ink-faint);text-transform:uppercase;margin-right:5px}
+@media (max-width:420px){
+  .t-row1 .name{white-space:normal;overflow:visible;text-overflow:clip;font-size:14.5px;line-height:1.25}
+  .datenav-row{gap:7px;padding:0 10px}
+  .datebtn{min-width:96px;padding:8px 24px 9px 11px}
+  .daytotals{min-width:0}
+  .dt .v{min-width:0;font-size:13.5px}
+  .dt{gap:6px}
+}
 
 /* Colored meta icons — quick visual scan of pax / boat type */
 .t-meta .ic{display:inline-flex;align-items:center}
@@ -300,6 +312,16 @@ let currentDate = ''; // YYYY-MM-DD
 // ── Helpers ──
 const $ = s => document.querySelector(s);
 const money = n => '$' + n.toLocaleString('es-MX');
+// "(20%)" bit shown next to a commission when the gross is known; empty when gross is 0/missing
+const pctOf = (part, whole) => (Number(whole) > 0 && Number(part) > 0)
+  ? ` <span class="pct">(${Math.round(part / whole * 100)}%)</span>` : '';
+// 'yyyy-MM-ddTHH:mm:ss' -> "5 jul 14:32"; '' when empty/unparseable
+function fmtWebhook(iso) {
+  if (!iso) return '';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}:\d{2})/);
+  if (!m) return '';
+  return Number(m[3]) + ' ' + MONTH_NAMES[Number(m[2]) - 1].toLowerCase() + ' ' + m[4];
+}
 const pending = {};   // pending photo per tour while editing correction
 
 function todayStr() {
@@ -430,9 +452,10 @@ function renderBooking(b, tid, i) {
       <div class="resv-id">RES #${b.booking_no}</div>
       <div class="rmoney">
         <div class="rm"><div class="k">BRUTO</div><div class="v">${money(b.gross)}</div></div>
-        <div class="rm"><div class="k">COM.</div><div class="v">${money(b.commission)}</div></div>
+        <div class="rm"><div class="k">COM.</div><div class="v">${money(b.commission)}${pctOf(b.commission, b.gross)}</div></div>
         <div class="rm"><div class="k">NETO</div><div class="v">${money(b.net)}</div></div>
       </div>
+      ${b.notes ? `<div class="resv-notes"><b>Notas:</b><span>${String(b.notes).replace(/</g,'&lt;')}</span></div>` : ''}
       ${pay}<br>
       ${fhLink}
     </div>
@@ -471,7 +494,8 @@ function renderTour(t) {
   const crew = t.crew.map(c => c.role ? `<span class="crole-tag">${c.role}</span> ${c.name}` : c.name).join(' · ');
   const resv = t.bookings.map((b,i) => renderBooking(b, t.id, i)).join('');
   const fhBtn = t.fh_url ? `<a class="iconbtn" title="FareHarbor" href="${t.fh_url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${ICON.fh}</a>` : '';
-  const ivaBit = t.iva > 0 ? `<div class="tm iva"><span class="k">IVA incl.</span><span class="v">${money(t.iva)}</span></div>` : '';
+  const ivaBit = t.iva > 0 ? `<div class="tm iva"><span class="k">+ IVA</span><span class="v">${money(t.iva)}</span></div>` : '';
+  const updatedLine = t.last_webhook ? `<div class="t-updated">Actualizado: ${fmtWebhook(t.last_webhook)}</div>` : '';
 
   let freshBadge = '';
   if (!cancelled && !notOperated) {
@@ -518,10 +542,11 @@ function renderTour(t) {
       ${flags?`<div class="flags">${flags}</div>`:''}
       <div class="tmoney">
         <div class="tm"><span class="k">BRUTO</span><span class="v">${money(t.gross)}</span></div>
-        <div class="tm"><span class="k">COM</span><span class="v">${money(t.commission)}</span></div>
+        <div class="tm"><span class="k">COM</span><span class="v">${money(t.commission)}${pctOf(t.commission, t.gross)}</span></div>
         <div class="tm net"><span class="k">NETO</span><span class="v">${money(t.net)}</span></div>
         ${ivaBit}
       </div>
+      ${updatedLine}
       <div class="tactions">
         <div class="iconbtn dashed" title="Gastos / Inventario" onclick="event.stopPropagation()">${ICON.gastos}</div>
         ${fhBtn}

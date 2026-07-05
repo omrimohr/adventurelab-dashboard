@@ -1391,7 +1391,7 @@ function renderInvoiceRow(inv, idx){
         </div>
         <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
           <div style="font-size:10px;color:var(--muted);">Comisión</div>
-          <div style="font-size:15px;font-weight:700;color:var(--amber);">${fmtMXN(totalComm)}</div>
+          <div style="font-size:15px;font-weight:700;color:var(--amber);">${fmtMXN(totalComm)}${totalGross>0&&totalComm>0?` <span style="font-size:10px;font-weight:500;color:var(--muted);">(${Math.round(totalComm/totalGross*100)}%)</span>`:''}</div>
         </div>
         <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
           <div style="font-size:10px;color:var(--muted);">IVA</div>
