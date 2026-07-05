@@ -125,6 +125,16 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
 .tour.cancelled .tour-bar{background:var(--ink-faint)}
 .tour.cancelled .hour{background:var(--ink-faint)}
 .cancel-badge{font:600 9px/1 var(--mono);letter-spacing:1px;color:#B42A2E;background:var(--red-wash);border:1px solid #F3C9CB;padding:5px 7px;border-radius:7px;flex:none}
+.tour.not-operated{opacity:.75}
+.tour.not-operated .tour-bar{background:var(--ink-faint)}
+.tour.not-operated .hour{background:var(--ink-faint);color:#fff}
+.notop-badge{font:600 9px/1 var(--mono);letter-spacing:1px;color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--line);padding:5px 7px;border-radius:7px;flex:none}
+.fresh{margin-top:2px}
+.fresh .mi{font-size:11px}
+.fresh.ok .mi{color:var(--teal-deep)}
+.fresh.warn .mi{color:#9A5E08}
+.fresh.bad .mi{color:#B42A2E}
+.capmiss-mark{display:inline-flex;flex:none;color:var(--red)}
 .tactions{display:flex;align-items:center;gap:8px;margin-top:12px}
 .iconbtn{width:44px;height:44px;flex:none;border:1px solid var(--line);background:var(--surface);border-radius:10px;display:grid;place-items:center;cursor:pointer;color:var(--ink-soft);text-decoration:none;transition:background .12s}
 .iconbtn:active{background:var(--surface-2)}
@@ -270,6 +280,19 @@ function handleUnauthorized(json){
   return false;
 }
 
+// ── Approver identity ──
+// No login yet — a name saved once per device, sent as `by` on every
+// approval. This is the seam the future username/PIN login replaces.
+const APPROVER_STORE = 'al_approver_name';
+function getApprover(){
+  let n = localStorage.getItem(APPROVER_STORE);
+  if(!n){
+    n = (prompt('¿Quién aprueba? (tu nombre)')||'').trim();
+    if(n) localStorage.setItem(APPROVER_STORE, n);
+  }
+  return n || 'Ops';
+}
+
 // ── State ──
 let DAY = null;       // current day payload
 let currentDate = ''; // YYYY-MM-DD
@@ -285,6 +308,17 @@ function todayStr() {
   const off = d.getTimezoneOffset();
   const cancun = new Date(d.getTime() + (off + (-5 * 60)) * 60000);
   return cancun.toISOString().slice(0, 10);
+}
+
+// Same UTC-5-year-round trick as todayStr(), but keeps time-of-day too.
+// Returns 'YYYY-MM-DDTHH:mm:ss' in Cancun wall-clock time — the exact
+// format tour_start_iso/tour_end_iso/last_webhook/ops_approved_at use,
+// so it's directly string-comparable against them.
+function nowIsoCancun() {
+  const d = new Date();
+  const off = d.getTimezoneOffset();
+  const cancun = new Date(d.getTime() + (off + (-5 * 60)) * 60000);
+  return cancun.toISOString().slice(0, 19);
 }
 
 function shiftDate(dateStr, days) {
@@ -425,15 +459,44 @@ function reportsHtml(reports) {
 }
 
 function renderTour(t) {
-  const flags = t.flags.map(f => `<span class="flag ${f.sev==='red'?'red':''}">${ICON.flag}${f.t}</span>`).join('');
-  const crew = t.crew.map(c => c.role ? `<span class="crole-tag">${c.role}</span> ${c.name}` : c.name).join(' · ');
-  const resv = t.bookings.map((b,i) => renderBooking(b, t.id, i)).join('');
   const id = t.id;
   const cancelled = t.bookings.length > 0 && t.bookings.every(b => b.cancelled);
+  const notOperated = !cancelled && !!t.tour_end_iso && (nowIsoCancun() < t.tour_end_iso);
+  const effectiveApproved = !!t.ops_approved && !t.needs_reverify;
+
+  const reverifyFlagHtml = (!cancelled && !notOperated && t.needs_reverify)
+    ? `<span class="flag red">${ICON.flag}Re-verificar</span>` : '';
+  const flags = t.flags.map(f => `<span class="flag ${f.sev==='red'?'red':''}">${ICON.flag}${f.t}</span>`).join('') + reverifyFlagHtml;
+
+  const crew = t.crew.map(c => c.role ? `<span class="crole-tag">${c.role}</span> ${c.name}` : c.name).join(' · ');
+  const resv = t.bookings.map((b,i) => renderBooking(b, t.id, i)).join('');
   const fhBtn = t.fh_url ? `<a class="iconbtn" title="FareHarbor" href="${t.fh_url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${ICON.fh}</a>` : '';
   const ivaBit = t.iva > 0 ? `<div class="tm iva"><span class="k">IVA incl.</span><span class="v">${money(t.iva)}</span></div>` : '';
+
+  let freshBadge = '';
+  if (!cancelled && !notOperated) {
+    if (t.last_webhook && t.last_webhook > t.tour_end_iso) {
+      freshBadge = `<div class="t-meta fresh ok"><span class="mi">🟢 Últ. actualización ${t.last_webhook.slice(11,16)}</span></div>`;
+    } else if (t.last_webhook) {
+      freshBadge = `<div class="t-meta fresh warn"><span class="mi">⚠ Sin actualización después del tour</span></div>`;
+    } else {
+      freshBadge = `<div class="t-meta fresh bad"><span class="mi">⚠ Sin datos de webhook</span></div>`;
+    }
+  }
+
+  const capMissMark = t.captain_missing_mark ? `<span class="capmiss-mark" title="Capitán no reportó">${ICON.pencil}</span>` : '';
+
+  const badgeHtml = cancelled
+    ? `<span class="cancel-badge">CANCELADO</span>`
+    : notOperated
+      ? `<span class="notop-badge">No finalizado</span>`
+      : `<span class="lights">${light(effectiveApproved,'OPS')}${light(t.com_approved,'COM')}</span>`;
+
+  const btnDisabled = (cancelled || notOperated) ? ' disabled' : '';
+  const btnLabel = cancelled ? 'Cancelado' : notOperated ? 'No finalizado' : (effectiveApproved ? '✓ Aprobado' : 'Aprobar');
+
   return `
-  <div class="tour ${t.ops_approved?'ops-ok':''} ${cancelled?'cancelled':''} ${(t.reports&&t.reports.length)?'has-corr':''}" id="tour-${id}">
+  <div class="tour ${effectiveApproved?'ops-ok':''} ${cancelled?'cancelled':''} ${notOperated?'not-operated':''} ${(t.reports&&t.reports.length)?'has-corr':''}" id="tour-${id}">
     <div class="tour-bar"></div>
     <div class="tour-body">
       <div class="t-row1" onclick="toggle('${id}')" role="button" tabindex="0"
@@ -442,9 +505,8 @@ function renderTour(t) {
         <span class="name">${t.name}</span>
         <span class="avail-tag">#${t.availability_pk}</span>
         <span class="tcorr-mark" title="Corrección reportada">${ICON.pencil}</span>
-        ${cancelled
-          ? `<span class="cancel-badge">CANCELADO</span>`
-          : `<span class="lights">${light(t.ops_approved,'OPS')}${light(t.com_approved,'COM')}</span>`}
+        ${capMissMark}
+        ${badgeHtml}
         <span class="chev">${ICON.chev}</span>
       </div>
       <div class="t-meta" onclick="toggle('${id}')">
@@ -452,6 +514,7 @@ function renderTour(t) {
         <span class="mi"><span class="ic" style="color:${boatColor(t.name,t.recurso)}">${ICON.rec}</span>${t.recurso}</span>
       </div>
       ${crew ? `<div class="t-meta t-crew" onclick="toggle('${id}')"><span class="mi"><span class="ic crew">${ICON.crew}</span>${crew}</span></div>` : ''}
+      ${freshBadge}
       ${flags?`<div class="flags">${flags}</div>`:''}
       <div class="tmoney">
         <div class="tm"><span class="k">BRUTO</span><span class="v">${money(t.gross)}</span></div>
@@ -462,7 +525,7 @@ function renderTour(t) {
       <div class="tactions">
         <div class="iconbtn dashed" title="Gastos / Inventario" onclick="event.stopPropagation()">${ICON.gastos}</div>
         ${fhBtn}
-        <button class="approve ${t.ops_approved?'done':''}" id="ap-${id}" onclick="approve('${id}')"${cancelled?' disabled':''}>${cancelled?'Cancelado':(t.ops_approved?'✓ Aprobado':'Aprobar')}</button>
+        <button class="approve ${effectiveApproved?'done':''}" id="ap-${id}" onclick="approve('${id}')"${btnDisabled}>${btnLabel}</button>
       </div>
       <div class="detail">
         ${t.notes?`<div class="tour-note">${ICON.note}<span>${t.notes}</span></div>`:''}
@@ -515,7 +578,7 @@ function updateLedger() {
     return;
   }
   const n = DAY.tours.length;
-  const ops = DAY.tours.filter(t => t.ops_approved).length;
+  const ops = DAY.tours.filter(t => t.ops_approved && !t.needs_reverify).length;
   const com = DAY.tours.filter(t => t.com_approved).length;
   $('#ops-val').textContent = ops+'/'+n; $('#com-val').textContent = com+'/'+n;
   $('#ops-fill').style.width = (ops/n*100)+'%'; $('#com-fill').style.width = (com/n*100)+'%';
@@ -525,18 +588,56 @@ function updateLedger() {
 function toggle(id) { $('#tour-'+id).classList.toggle('open'); }
 function rtoggle(tid,i) { event.stopPropagation(); $('#r-'+tid+'-'+i).classList.toggle('open'); }
 
-function approve(id) {
+async function approve(id) {
   event.stopPropagation();
   const t = DAY.tours.find(x => x.id === id);
-  t.ops_approved = !t.ops_approved;
-  // TODO: POST approval to API when wired
-  // fetch(API + '?action=ops_approve_tour&tour_id=...&date=' + currentDate, { method:'POST' });
-  const card = $('#tour-'+id);
-  card.classList.toggle('ops-ok', t.ops_approved);
-  $('#ap-'+id).classList.toggle('done', t.ops_approved);
-  $('#ap-'+id).innerHTML = t.ops_approved ? '✓ Aprobado' : 'Aprobar';
-  card.querySelector('.lights').innerHTML = light(t.ops_approved,'OPS') + light(t.com_approved,'COM');
-  updateLedger();
+  const wasApproved = t.ops_approved && !t.needs_reverify;
+  const approving = !wasApproved;
+
+  let captainMissing = false;
+  if (approving) {
+    const notOperated = t.tour_end_iso && nowIsoCancun() < t.tour_end_iso;
+    if (!notOperated) {
+      const fresh = !!(t.last_webhook && t.last_webhook > t.tour_end_iso);
+      captainMissing = !fresh;
+    }
+    if (captainMissing && !confirm('El capitán no reportó — ¿aprobar de todos modos?')) return;
+  }
+
+  const btn = $('#ap-'+id);
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(apiUrl('?action=ops_approve_tour'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        availability_pk: t.availability_pk,
+        tour_date: currentDate,
+        tour_time: t.hour,
+        tour_name: t.name,
+        crew: (t.crew||[]).map(c=>c.name).join(', '),
+        approved: approving,
+        by: getApprover(),
+        captain_missing: captainMissing,
+      }),
+    });
+    const json = await res.json();
+    if (handleUnauthorized(json)) return;
+    if (!json || json.status !== 'ok') throw new Error(json && json.message || 'error');
+
+    t.ops_approved = approving;
+    t.needs_reverify = false;
+    t.captain_missing_mark = approving && captainMissing;
+
+    const wasOpen = $('#tour-'+id).classList.contains('open');
+    $('#tour-'+id).outerHTML = renderTour(t);
+    if (wasOpen) $('#tour-'+id).classList.add('open');
+    updateLedger();
+  } catch (e) {
+    btn.disabled = false;
+    alert('Error al aprobar — reintentar. ' + (e.message||''));
+  }
 }
 
 // ── Corrections ──
