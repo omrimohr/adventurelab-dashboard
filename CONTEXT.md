@@ -772,3 +772,32 @@ Full project review, then 6-task security/performance plan executed (plan saved 
 **Deployments:** apps-script pinned deployment now at **@158**. Dashboard repo: `ops.html` updated (push to Pages for coordinators).
 
 **Out of scope (future):** reporter identity (waits on login), edit/delete a report from the UI (edit the sheet), inline photo rendering (link-only by choice).
+
+---
+
+## Session log (2026-07-04, continued) — Ops approval persistence + freshness/compliance (Claude Code)
+
+**Goal:** the ops day-view **Aprobar** button was client-side only (reset on reload, nothing written to the sheet). This is "Phase 2" of `workflow-approval-chain.md`: persist Ops approval, show whether a tour's data is fresh (did the captain report after the tour ended?), gray out tours that haven't happened yet, invalidate stale approvals when new webhook data lands, and log captain no-shows for later follow-up.
+
+**Storage — 3 new columns on the Tours SHEET, deliberately kept OUT of `COLS.TOURS`:** `Ops Approved` (bool), `Ops Approved By`, `Ops Approved At` (`yyyy-MM-ddTHH:mm:ss`). Since `updateRowFromObject`/`appendObjectAsRow` (the webhook recompute path) only ever write cells for keys present in the colsDef passed to them, keeping these 3 out of `COLS.TOURS` means a webhook updating pax/crew/etc. can never clobber an approval — confirmed by reading `Tours.js`/`Helpers.js` before building, not assumed.
+
+New append-only **"Cumplimiento Capitán"** tab logs every time Ops approves a tour the captain never reported on (Fecha, Hora, Tour, Availability PK, Tripulación, Motivo, Registrado, Aprobado Por) — the durable record for "put this captain on attention," separate from the ephemeral in-session card marker.
+
+**Backend (`Approvals.js`, new):** `ensureOpsApprovalColumns_()` (idempotent, self-heals), `saveOpsApproval(data)` (upserts the 3 cells by matching Availability PK + Tour Date; appends a compliance row when `captain_missing:true`; clears the `ops_day` cache for that date). `doPost` (`Webhook.js`) gained an `action=ops_approve_tour` branch (key-gated, same `text/plain` contract as `save_report`). `OpsDay.js` now computes and returns per tour: `last_webhook` (max webhook timestamp across the tour's bookings), `tour_start_iso`/`tour_end_iso` (via a plain-minute-math `addHoursToHHMM_`, deliberately avoiding `new Date()` arithmetic which would silently shift by timezone in Apps Script's V8 runtime), and `needs_reverify` (true when a webhook landed after the last approval).
+
+**Timestamp format discipline:** every timestamp this feature touches (`last_webhook`, `tour_start_iso`, `tour_end_iso`, `ops_approved_at`) is normalized to the identical fixed-width `yyyy-MM-ddTHH:mm:ss`, so all freshness/staleness comparisons are plain string comparisons — never `new Date(...)` parsing, which is a real cross-browser risk (Safari doesn't parse every ISO-ish variant the way V8/Chrome does).
+
+**Two real bugs found and fixed while building (not left as known issues):**
+1. `ops_day` already had its own 5-minute `CacheService` cache per date; nothing invalidated it for this new direct-to-sheet write path. Fixed with `clearOpsDayCache_(dateStr)`, called from `saveOpsApproval`.
+2. Live-tested and caught: writing a `yyyy-MM-ddTHH:mm:ss` string into `Ops Approved At` via `setValue()` got silently auto-parsed by Sheets into a real Date cell, and the shared `cellToApiValue_` helper — correctly, for the many *date-only* columns elsewhere — truncates Date cells to date-only on read, which was quietly destroying the time-of-day `needs_reverify` depends on. Fixed by forcing that one column to plain-text format (`setNumberFormat('@')`), applied on every `ensureOpsApprovalColumns_()` call so it self-heals a column created before the fix.
+3. Also hit a transient "Service Spreadsheets timed out" creating the Cumplimiento Capitán tab on first use — wrapped in the existing `withRetry()` helper (same pattern already used elsewhere in `Tours.js`).
+
+**Frontend (`ops.html`):** `approve()` now POSTs to `?action=ops_approve_tour` (optimistic-then-confirm, reverts on error). `renderTour` gained: **"No finalizado"** gray state (tour hasn't reached its scheduled end yet, Aprobar disabled) computed from `tour_end_iso`; a green/amber/red freshness badge under crew (webhook after tour end / webhook but stale / no webhook at all); a **Re-verificar** flag when `needs_reverify` is true (tour renders as un-approved until Ops approves again — no backend write-on-read, purely a derived render); a confirm ("El capitán no reportó — ¿aprobar de todos modos?") when approving an operated tour with no fresh webhook, which logs the compliance row. Approver identity is a per-device name (`getApprover()`, localStorage) until real login exists — same seam as the Reports feature's `Reportado Por`.
+
+**Daily triage (on-demand, no new automation):** added `getOpenReports()` + read-only action `?action=reports_open` (Reportes rows not yet `Resuelto`, newest-first). When asked for "the daily review," Claude reads this + the existing `errors` action and proposes a fix plan — no scheduled job, no UI for marking resolved (edit the sheet).
+
+**Verified:** `testSaveOpsApproval` in the editor — full approve→read-back→un-approve→read-back cycle, confirmed against a real tour (`Sunrise Paddleboard Tour`), including the full timestamp surviving the plain-text fix. `renderTour` exercised in preview against synthetic tours covering all 6 states (not-operated, green/amber/red freshness, re-verify-flips-to-un-approved, cancelled-takes-priority-over-not-operated) — all correct. Live `doPost` routing confirmed via curl for both new actions post-deploy. Test rows cleaned from Tours/Cumplimiento Capitán via `cleanupTestApprovalCompliance()`.
+
+**Deployments:** apps-script pinned deployment now at **@159**. Dashboard repo: `ops.html` committed.
+
+**Out of scope (future, per spec):** Com approval + Admin/QBO trigger (Phase 3); real username/PIN login (replaces `getApprover()`); marking a report `Resuelto` from the UI; approvals are not preserved across a manual `rebuildTours()` (documented, not a normal path).
