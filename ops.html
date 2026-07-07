@@ -227,6 +227,23 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
 
 .nodata{text-align:center;padding:50px 20px;color:var(--ink-faint);font-size:15px}
 
+.inv-panel{margin-top:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px}
+.inv-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line)}
+.inv-row:last-of-type{border-bottom:none}
+.inv-row .nm{flex:1;font-size:13.5px}
+.inv-row .nm small{color:var(--ink-faint);font-size:10.5px;display:block}
+.inv-step{display:flex;align-items:center;gap:8px}
+.inv-step button{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--surface);font-size:19px;font-weight:700;color:var(--ink)}
+.inv-step .q{min-width:32px;text-align:center;font:600 15px var(--mono)}
+.inv-low{display:inline-block;font-size:9.5px;color:#9A5E08;background:var(--amber-wash);border-radius:99px;padding:1px 7px;margin-left:6px}
+.inv-actions{display:flex;gap:8px;margin-top:10px}
+.inv-save{flex:1;padding:11px;border-radius:9px;border:none;background:var(--ink);color:#fff;font-weight:600;font-size:14px}
+.inv-add{font-size:12.5px;color:var(--ink-soft);background:none;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;margin-top:8px;width:100%}
+.inv-chip{font:600 10px var(--mono);color:#1a6b45;margin-left:6px}
+.gasbar{display:flex;justify-content:flex-end;padding:10px 0 2px}
+.gas-btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:8px 13px;border-radius:99px;border:1px solid var(--line);background:var(--surface);color:var(--ink);box-shadow:var(--shadow);cursor:pointer}
+.gas-input{width:90px;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--surface)}
+
 :focus-visible{outline:2.5px solid var(--teal);outline-offset:2px;border-radius:6px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -260,7 +277,11 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
   </div></div>
 </div>
 
-<div class="wrap"><div class="list" id="day"></div></div>
+<div class="wrap">
+  <div class="gasbar"><button class="gas-btn" onclick="gasOpen()">⛽ Gastos</button></div>
+  <div id="gas-panel"></div>
+  <div class="list" id="day"></div>
+</div>
 
 <script>
 // ============================================================
@@ -548,10 +569,11 @@ function renderTour(t) {
       </div>
       ${updatedLine}
       <div class="tactions">
-        <div class="iconbtn dashed" title="Gastos / Inventario" onclick="event.stopPropagation()">${ICON.gastos}</div>
+        <div class="iconbtn dashed" title="Gastos / Inventario" onclick="event.stopPropagation();invOpen('${id}')">${ICON.gastos}</div><span class="inv-chip" id="invchip-${id}"></span>
         ${fhBtn}
         <button class="approve ${effectiveApproved?'done':''}" id="ap-${id}" onclick="approve('${id}')"${btnDisabled}>${btnLabel}</button>
       </div>
+      <div id="inv-${id}"></div>
       <div class="detail">
         ${t.notes?`<div class="tour-note">${ICON.note}<span>${t.notes}</span></div>`:''}
         <div class="resv-hdr"><span class="t">RESERVACIONES · ${t.bookings.length}</span><span class="rule"></span></div>
@@ -580,6 +602,159 @@ function renderTour(t) {
       </div>
     </div>
   </div>`;
+}
+
+// ── Inventario check-out / check-in ──
+const invState = {}; // tid -> {state, items, catalog}
+const escHtml = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+async function invOpen(tid) {
+  const t = DAY.tours.find(x => x.id === tid); if (!t) return;
+  const box = $('#inv-'+tid);
+  if (box.innerHTML) { box.innerHTML = ''; return; } // toggle closed
+  box.innerHTML = '<div class="inv-panel">Cargando…</div>';
+  try {
+    const r = await fetch(apiUrl('?action=insumos_prefill') +
+      '&availability_pk=' + encodeURIComponent(t.availability_pk) +
+      '&date=' + currentDate + '&tour_name=' + encodeURIComponent(t.name) +
+      '&pax=' + (t.pax || 0));
+    const d = await r.json();
+    if (handleUnauthorized(d)) { box.innerHTML = ''; return; }
+    if (d.status === 'error') throw new Error(d.message);
+    invState[tid] = d;
+    box.innerHTML = invRender(tid);
+    const chip = $('#invchip-'+tid);
+    if (chip) chip.textContent = d.state === 'complete' ? '📦✓✓' : d.state === 'salida' ? '📦✓' : '';
+  } catch (err) { box.innerHTML = '<div class="inv-panel">Error: ' + escHtml(err.message) + '</div>'; }
+}
+
+function invRender(tid) {
+  const d = invState[tid];
+  const returning = d.state === 'salida';
+  const done      = d.state === 'complete';
+  const rows = d.items.map((it, i) => {
+    const q = returning ? (it.qty_returned === null ? it.qty : it.qty_returned) : it.qty;
+    it._q = done ? it.qty_returned : q;
+    const stepper = done ? `<span class="q">${it.qty_returned}/${it.qty}</span>` :
+      `<div class="inv-step">
+         <button onclick="invStep('${tid}',${i},-1)">−</button>
+         <span class="q" id="invq-${tid}-${i}">${it._q}</span>
+         <button onclick="invStep('${tid}',${i},1)">+</button>
+       </div>`;
+    return `<div class="inv-row"><div class="nm">${escHtml(it.item)}${it.low ? '<span class="inv-low">stock bajo</span>' : ''}
+      <small>${escHtml(it.unidad)}${returning ? ' · salida: ' + it.qty : ''}</small></div>${stepper}</div>`;
+  }).join('');
+  const addBtn = (!done && !returning) ? `<button class="inv-add" onclick="invAdd('${tid}')">+ Agregar item</button>` : '';
+  const action = done ? '' :
+    `<div class="inv-actions"><button class="inv-save" onclick="invSave('${tid}')">${returning ? 'Confirmar regreso' : 'Confirmar salida'}</button></div>`;
+  const title = done ? '📦 Completo' : returning ? '📦 Regreso' : '📦 Salida';
+  return `<div class="inv-panel"><b style="font-size:12px">${title}</b>${rows || '<div class="inv-row"><div class="nm">Sin receta — agrega items</div></div>'}${addBtn}${action}</div>`;
+}
+
+function invStep(tid, i, delta) {
+  const it = invState[tid].items[i];
+  it._q = Math.max(0, (it._q || 0) + delta);
+  $('#invq-'+tid+'-'+i).textContent = it._q;
+}
+
+function invAdd(tid) {
+  const d = invState[tid];
+  const names = d.catalog.filter(c => !d.items.some(x => x.item === c.item)).map(c => c.item);
+  if (!names.length) return alert('Todo el catálogo ya está en la lista');
+  const pick = prompt('Item:\n' + names.map((n, i) => (i + 1) + '. ' + n).join('\n') + '\n\nEscribe el número:');
+  const c = d.catalog.filter(x => x.item === names[Number(pick) - 1])[0];
+  if (!c) return;
+  d.items.push({ item: c.item, unidad: c.unidad, precio: c.precio, qty: 1, qty_returned: null, _q: 1, low: false });
+  $('#inv-'+tid).innerHTML = invRender(tid);
+}
+
+async function invSave(tid) {
+  const t = DAY.tours.find(x => x.id === tid);
+  const d = invState[tid];
+  const returning = d.state === 'salida';
+  const items = d.items.map(it => returning
+    ? { item: it.item, qty_returned: it._q }
+    : { item: it.item, qty: it._q });
+  const action = returning ? 'insumos_checkin' : 'insumos_checkout';
+  // checkin's contract carries no tour_name — only checkout does
+  const body = returning
+    ? { availability_pk: t.availability_pk, tour_date: currentDate,
+        coordinator: getApprover(), items: items }
+    : { availability_pk: t.availability_pk, tour_date: currentDate,
+        tour_name: t.name, coordinator: getApprover(), items: items };
+  try {
+    const r = await fetch(apiUrl('?action='+action), { method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+    const res = await r.json();
+    if (handleUnauthorized(res)) return;
+    if (res.status !== 'ok') throw new Error(res.message || 'error');
+    $('#inv-'+tid).innerHTML = '';
+    invOpen(tid); // re-fetch fresh state
+  } catch (err) { alert('No se pudo guardar: ' + err.message); }
+}
+
+// ── Gastos: gasolina (gasolinera / lancha) + compra de insumos ──
+function gasOpen() {
+  const box = $('#gas-panel');
+  if (box.innerHTML) { box.innerHTML = ''; return; } // toggle closed
+  box.innerHTML = `<div class="inv-panel">
+    <div class="inv-actions">
+      <button class="inv-save" onclick="gasForm('station')">⛽ Gasolinera</button>
+      <button class="inv-save" onclick="gasForm('boat')">🚤 Lancha</button>
+      <button class="inv-save" onclick="gasForm('compra')">🛒 Compra</button>
+    </div><div id="gas-form"></div></div>`;
+}
+
+function gasForm(kind) {
+  const f = $('#gas-form');
+  if (kind === 'station') {
+    f.innerHTML = `<div class="inv-row"><div class="nm">Bidones</div><input class="gas-input" id="g-bid" type="number" inputmode="numeric"></div>
+      <div class="inv-row"><div class="nm">Costo total (MXN)</div><input class="gas-input" id="g-cost" type="number" inputmode="numeric"></div>
+      <div class="inv-actions"><button class="inv-save" onclick="gasSave('station')">Guardar</button></div>`;
+  } else if (kind === 'boat') {
+    const boats = [...new Set((DAY && DAY.tours || []).map(t => t.recurso).filter(Boolean))];
+    f.innerHTML = `<div class="inv-row"><div class="nm">Lancha</div>
+        <input class="gas-input" style="width:150px" id="g-res" list="g-boats"><datalist id="g-boats">${boats.map(b => `<option value="${escHtml(b)}">`).join('')}</datalist></div>
+      <div class="inv-row"><div class="nm">Bidones</div><input class="gas-input" id="g-bid" type="number" inputmode="numeric"></div>
+      <div class="inv-actions"><button class="inv-save" onclick="gasSave('boat')">Guardar</button></div>`;
+  } else {
+    f.innerHTML = `<div class="inv-row"><div class="nm">Descripción / Item</div><input class="gas-input" style="width:160px" id="g-desc"></div>
+      <div class="inv-row"><div class="nm">Cantidad</div><input class="gas-input" id="g-cant" type="number" inputmode="numeric"></div>
+      <div class="inv-row"><div class="nm">Costo total (MXN)</div><input class="gas-input" id="g-cost" type="number" inputmode="numeric"></div>
+      <div class="inv-actions"><button class="inv-save" onclick="gasSave('compra')">Guardar</button></div>`;
+  }
+}
+
+async function gasSave(kind) {
+  const v = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  try {
+    let res;
+    if (kind === 'compra') {
+      // POST — goes through doPost's insumo_purchase branch (updates catalog price)
+      if (!v('g-desc') || !v('g-cost')) return alert('Faltan descripción o costo');
+      const body = { date: currentDate, description: v('g-desc'), cantidad: v('g-cant'),
+                     cost_mxn: v('g-cost'), coordinator: getApprover() };
+      const r = await fetch(apiUrl('?action=insumo_purchase'), { method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+      res = await r.json();
+    } else {
+      // GET — gas_station / gas_boat are doGet actions that read query params
+      if (!v('g-bid')) return alert('Faltan bidones');
+      if (kind === 'station' && !v('g-cost')) return alert('Falta el costo');
+      if (kind === 'boat' && !v('g-res')) return alert('Falta la lancha');
+      const qs = kind === 'station'
+        ? '?action=gas_station&date=' + currentDate + '&bidones=' + encodeURIComponent(v('g-bid')) +
+          '&cost_mxn=' + encodeURIComponent(v('g-cost')) + '&coordinator=' + encodeURIComponent(getApprover())
+        : '?action=gas_boat&date=' + currentDate + '&resource=' + encodeURIComponent(v('g-res')) +
+          '&bidones=' + encodeURIComponent(v('g-bid')) + '&coordinator=' + encodeURIComponent(getApprover());
+      const r = await fetch(apiUrl(qs));
+      res = await r.json();
+    }
+    if (handleUnauthorized(res)) return;
+    if (res.status !== 'ok') throw new Error(res.message || 'error');
+    $('#gas-panel').innerHTML = '';
+    alert('Guardado ✓' + (res.cost_per_bidon ? ' — $' + res.cost_per_bidon + '/bidón' : ''));
+  } catch (err) { alert('No se pudo guardar: ' + err.message); }
 }
 
 function render() {
