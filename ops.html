@@ -169,6 +169,19 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
 .resv-hdr .t{font:600 10.5px/1 var(--mono);letter-spacing:1.5px;color:var(--ink-soft)}
 .resv-hdr .rule{flex:1;height:1px;background:var(--line-soft)}
 
+/* Costs */
+.costs-box{margin-top:7px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:10px;display:flex;flex-direction:column;gap:7px}
+.cost-line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:12.5px;color:var(--ink-soft)}
+.cost-line .cv{font:600 13px/1 var(--mono);white-space:nowrap;color:var(--ink)}
+.cost-hint{color:var(--ink-faint);font-size:10.5px;margin-left:5px}
+.cost-line.total{border-top:1px solid var(--line-soft);padding-top:7px;margin-top:1px}
+.cost-line.total .cl{font-weight:700;color:var(--ink)}
+.cost-line.total .cv{font-size:14.5px}
+.cost-pct.green{color:var(--teal-deep)}
+.cost-pct.amber{color:#9A5E08}
+.cost-pct.red{color:var(--red)}
+.cost-pct.na{color:var(--ink-faint)}
+
 /* Reservation */
 .resv{border:1px solid var(--line-soft);border-radius:10px;margin-top:7px;background:var(--surface-2);overflow:hidden}
 .resv-row{display:flex;align-items:flex-start;gap:10px;padding:10px 11px;cursor:pointer}
@@ -598,6 +611,33 @@ function reportsHtml(reports) {
   }).join('');
 }
 
+function costsHtml(t) {
+  const c = t && t.costs;
+  if (!c) return '';
+  const insumosList = (c.insumos || []).map(i => `${escHtml(i.item)} ×${i.qty}`).join(', ');
+  const insumosHint = c.insumos_provisional ? '<span class="cost-hint">(salida)</span>' : '';
+  const gas = c.gasolina || { bidones: 0, costo: 0, source: '' };
+  const gasHint = gas.source === 'preset' ? '<span class="cost-hint">(preset)</span>' : '';
+  const crewRows = (c.crew || []).map(cr =>
+    `<div class="cost-line"><span class="cl">${escHtml(cr.rol)}</span><span class="cv">${money(cr.pago)}</span></div>`
+  ).join('');
+  let pctCls = 'na', pctText = '—';
+  if (c.pct != null) {
+    pctText = c.pct + '%';
+    pctCls = c.pct < 30 ? 'green' : (c.pct <= 50 ? 'amber' : 'red');
+  }
+  return `
+        <div class="resv-hdr"><span class="t">COSTOS</span><span class="rule"></span></div>
+        <div class="costs-box">
+          <div class="cost-line"><span class="cl">Insumos${insumosHint}</span><span class="cv">${money(c.insumos_total || 0)}</span></div>
+          ${insumosList ? `<div class="cost-line"><span class="cl" style="font-size:11.5px">${insumosList}</span></div>` : ''}
+          <div class="cost-line"><span class="cl">Gasolina${gasHint}</span><span class="cv">${gas.bidones} bidón${gas.bidones===1?'':'es'} · ${money(gas.costo || 0)}</span></div>
+          ${crewRows}
+          <div class="cost-line total"><span class="cl">Costo total</span><span class="cv">${money(c.total || 0)}</span></div>
+          <div class="cost-line"><span class="cl">% del ingreso neto</span><span class="cv cost-pct ${pctCls}">${pctText}</span></div>
+        </div>`;
+}
+
 function renderTour(t) {
   const id = t.id;
   const cancelled = t.bookings.length > 0 && t.bookings.every(b => b.cancelled);
@@ -671,6 +711,7 @@ function renderTour(t) {
       </div>
       <div class="detail">
         ${t.notes?`<div class="tour-note">${ICON.note}<span>${t.notes}</span></div>`:''}
+        ${costsHtml(t)}
         <div class="resv-hdr"><span class="t">RESERVACIONES · ${t.bookings.length}</span><span class="rule"></span></div>
         ${resv}
         <div class="corr-section">
