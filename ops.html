@@ -14,6 +14,7 @@
   --line:#E2EAEA; --line-soft:#EDF2F2;
   --teal:#0FA37F; --teal-deep:#0B7A60; --teal-wash:#E6F6F0;
   --blue:#5E94B8; --amber:#D9881B; --amber-wash:#FCF1DE; --amber-line:#EBD3A6; --red:#E5484D; --red-wash:#FCE9E9;
+  --pos-salida:#D85A30; --pos-regreso:#1D9E75;
   --shadow:0 1px 2px rgba(14,58,64,.04), 0 4px 16px rgba(14,58,64,.06);
   --r:14px;
   --sans:'IBM Plex Sans',system-ui,sans-serif;
@@ -240,6 +241,40 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
 .inv-save{flex:1;padding:11px;border-radius:9px;border:none;background:var(--ink);color:#fff;font-weight:600;font-size:14px}
 .inv-add{font-size:12.5px;color:var(--ink-soft);background:none;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;margin-top:8px;width:100%}
 .inv-chip{font:600 10px var(--mono);color:#1a6b45;margin-left:6px}
+/* ── POS-style insumos modal (replaces old inline inv-panel) ── */
+.pos-overlay{display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.45);
+  align-items:flex-end;justify-content:center}
+.pos-overlay.show{display:flex}
+.pos-box{width:100%;max-width:520px;max-height:88vh;background:var(--surface);border-radius:16px 16px 0 0;
+  display:flex;flex-direction:column;overflow:hidden;border:2px solid var(--line);border-bottom:none;
+  box-shadow:0 -8px 30px rgba(0,0,0,.25);transition:border-color .15s}
+@media (min-width:560px){
+  .pos-overlay{align-items:center}
+  .pos-box{border-radius:16px;max-height:80vh;border-bottom:2px solid var(--line)}
+}
+.pos-box.mode-salida{border-color:var(--pos-salida)}
+.pos-box.mode-regreso{border-color:var(--pos-regreso)}
+.pos-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line-soft);flex:none}
+.pos-title{font-weight:700;font-size:15.5px;color:var(--ink)}
+.pos-close{width:32px;height:32px;border:none;background:var(--surface-2);border-radius:50%;font-size:16px;color:var(--ink-soft);cursor:pointer;flex:none}
+.pos-toggle{display:flex;gap:8px;padding:12px 16px;flex:none}
+.pos-tbtn{flex:1;padding:11px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);
+  font:600 13.5px var(--sans);color:var(--ink-soft);cursor:pointer;text-align:center}
+.pos-tbtn small{display:block;font:500 9.5px var(--sans);margin-top:2px;color:var(--ink-faint)}
+.pos-tbtn.disabled{opacity:.5;cursor:not-allowed}
+.pos-box.mode-salida .pos-tbtn.active{background:var(--pos-salida);border-color:var(--pos-salida);color:#fff}
+.pos-box.mode-regreso .pos-tbtn.active{background:var(--pos-regreso);border-color:var(--pos-regreso);color:#fff}
+.pos-grid{flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(2,1fr);gap:9px;padding:4px 16px 16px;-webkit-overflow-scrolling:touch}
+.pos-item{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--surface-2);cursor:pointer;text-align:center}
+.pos-item-nm{font-size:12.5px;font-weight:600;color:var(--ink);min-height:32px;display:flex;align-items:center;justify-content:center}
+.pos-item-q{font:700 26px/1 var(--mono);color:var(--ink);margin:4px 0}
+.pos-item-price{font-size:10.5px;color:var(--ink-faint)}
+.pos-footer{padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line-soft);flex:none}
+.pos-save{width:100%;padding:14px;border:none;border-radius:11px;font:700 15px var(--sans);color:#fff;cursor:pointer;background:var(--ink)}
+.pos-box.mode-salida .pos-save{background:var(--pos-salida)}
+.pos-box.mode-regreso .pos-save{background:var(--pos-regreso)}
+.pos-loading{padding:40px;text-align:center;color:var(--ink-soft)}
+
 .gasbar{display:flex;justify-content:flex-end;padding:10px 0 2px}
 .gas-btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:8px 13px;border-radius:99px;border:1px solid var(--line);background:var(--surface);color:var(--ink);box-shadow:var(--shadow);cursor:pointer}
 .gas-input{width:90px;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--surface)}
@@ -634,7 +669,6 @@ function renderTour(t) {
         ${fhBtn}
         <button class="approve ${effectiveApproved?'done':''}" id="ap-${id}" onclick="approve('${id}')"${btnDisabled}>${btnLabel}</button>
       </div>
-      <div id="inv-${id}"></div>
       <div class="detail">
         ${t.notes?`<div class="tour-note">${ICON.note}<span>${t.notes}</span></div>`:''}
         <div class="resv-hdr"><span class="t">RESERVACIONES · ${t.bookings.length}</span><span class="rule"></span></div>
@@ -665,93 +699,171 @@ function renderTour(t) {
   </div>`;
 }
 
-// ── Inventario check-out / check-in ──
-const invState = {}; // tid -> {state, items, catalog}
+// ── Inventario check-out / check-in — POS-style modal ──
+// Replaces the old inline #inv-${id} panel (fa4acf0) with a single shared
+// modal (#pos-modal, created lazily) tinted coral (salida) / teal (regreso).
 const escHtml = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+let posState = null; // { tid, t, mode:'salida'|'regreso', items:[{item,unidad,precio,salida,regreso}], regresoUnlocked, complete }
+
+function ensurePosModal() {
+  let m = document.getElementById('pos-modal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'pos-modal';
+    m.className = 'pos-overlay';
+    m.innerHTML = `<div class="pos-box" id="pos-box" onclick="event.stopPropagation()">
+      <div class="pos-header"><span class="pos-title" id="pos-title"></span>
+        <button class="pos-close" onclick="posClose()" aria-label="Cerrar">✕</button></div>
+      <div class="pos-toggle" id="pos-toggle"></div>
+      <div class="pos-grid" id="pos-grid"></div>
+      <div class="pos-footer" id="pos-footer"></div>
+    </div>`;
+    m.addEventListener('click', posClose); // tap outside the box closes
+    document.body.appendChild(m);
+  }
+  return m;
+}
+
+function posClose() {
+  const m = document.getElementById('pos-modal');
+  if (m) m.classList.remove('show');
+}
+
+async function updateInvChip(tid, stateStr) {
+  const chip = $('#invchip-'+tid);
+  if (chip) chip.textContent = stateStr === 'complete' ? '📦✓✓' : stateStr === 'salida' ? '📦✓' : '';
+}
 
 async function invOpen(tid) {
   const t = DAY.tours.find(x => x.id === tid); if (!t) return;
-  const box = $('#inv-'+tid);
-  if (box.innerHTML) { box.innerHTML = ''; return; } // toggle closed
-  box.innerHTML = '<div class="inv-panel">Cargando…</div>';
+  const modal = ensurePosModal();
+  modal.classList.add('show');
+  $('#pos-box').className = 'pos-box';
+  $('#pos-title').textContent = t.name;
+  $('#pos-toggle').innerHTML = '';
+  $('#pos-grid').innerHTML = '<div class="pos-loading">Cargando…</div>';
+  $('#pos-footer').innerHTML = '';
   try {
     const r = await fetch(apiUrl('?action=insumos_prefill') +
       '&availability_pk=' + encodeURIComponent(t.availability_pk) +
       '&date=' + currentDate + '&tour_name=' + encodeURIComponent(t.name) +
       '&pax=' + (t.pax || 0));
     const d = await r.json();
-    if (handleUnauthorized(d)) { box.innerHTML = ''; return; }
+    if (handleUnauthorized(d)) { posClose(); return; }
     if (d.status === 'error') throw new Error(d.message);
-    invState[tid] = d;
-    box.innerHTML = invRender(tid);
-    const chip = $('#invchip-'+tid);
-    if (chip) chip.textContent = d.state === 'complete' ? '📦✓✓' : d.state === 'salida' ? '📦✓' : '';
-  } catch (err) { box.innerHTML = '<div class="inv-panel">Error: ' + escHtml(err.message) + '</div>'; }
+
+    updateInvChip(tid, d.state);
+
+    // Unified item list: receta items first, then remaining active catalog
+    // items not already covered — almost everything is one tap away.
+    const items = (d.items || []).map(it => ({
+      item: it.item, unidad: it.unidad, precio: it.precio,
+      salida: Number(it.qty) || 0,
+      regreso: (it.qty_returned != null ? Number(it.qty_returned) : 0),
+    }));
+    const already = new Set(items.map(x => x.item));
+    (d.catalog || []).forEach(c => {
+      if (already.has(c.item)) return; // catalog from insumos_prefill is already active-only
+      items.push({ item: c.item, unidad: c.unidad, precio: c.precio, salida: 0, regreso: 0 });
+    });
+
+    // Regreso locked until the tour has actually started; fail open if
+    // tour_start_iso is missing/unparseable so it never blocks usage.
+    let regresoUnlocked = true;
+    if (t.tour_start_iso) {
+      const start = new Date(t.tour_start_iso);
+      if (!isNaN(start.getTime())) regresoUnlocked = (new Date() >= start);
+    }
+
+    posState = {
+      tid, t, items, regresoUnlocked,
+      complete: d.state === 'complete',
+      mode: (d.state === 'salida' && regresoUnlocked) ? 'regreso' : 'salida',
+    };
+    posRender();
+  } catch (err) {
+    $('#pos-grid').innerHTML = '<div class="pos-loading">Error: ' + escHtml(err.message) + '</div>';
+  }
 }
 
-function invRender(tid) {
-  const d = invState[tid];
-  const returning = d.state === 'salida';
-  const done      = d.state === 'complete';
-  const rows = d.items.map((it, i) => {
-    const q = returning ? (it.qty_returned === null ? it.qty : it.qty_returned) : it.qty;
-    it._q = done ? it.qty_returned : q;
-    const stepper = done ? `<span class="q">${it.qty_returned}/${it.qty}</span>` :
-      `<div class="inv-step">
-         <button onclick="invStep('${tid}',${i},-1)">−</button>
-         <span class="q" id="invq-${tid}-${i}">${it._q}</span>
-         <button onclick="invStep('${tid}',${i},1)">+</button>
-       </div>`;
-    return `<div class="inv-row"><div class="nm">${escHtml(it.item)}${it.low ? '<span class="inv-low">stock bajo</span>' : ''}
-      <small>${escHtml(it.unidad)}${returning ? ' · salida: ' + it.qty : ''}</small></div>${stepper}</div>`;
-  }).join('');
-  const addBtn = (!done && !returning) ? `<button class="inv-add" onclick="invAdd('${tid}')">+ Agregar item</button>` : '';
-  const action = done ? '' :
-    `<div class="inv-actions"><button class="inv-save" onclick="invSave('${tid}')">${returning ? 'Confirmar regreso' : 'Confirmar salida'}</button></div>`;
-  const title = done ? '📦 Completo' : returning ? '📦 Regreso' : '📦 Salida';
-  return `<div class="inv-panel"><b style="font-size:12px">${title}</b>${rows || '<div class="inv-row"><div class="nm">Sin receta — agrega items</div></div>'}${addBtn}${action}</div>`;
+function posRender() {
+  const s = posState; if (!s) return;
+  const box = $('#pos-box');
+  box.className = 'pos-box mode-' + s.mode;
+
+  const regresoDisabled = !s.regresoUnlocked;
+  $('#pos-toggle').innerHTML = `
+    <button class="pos-tbtn ${s.mode==='salida'?'active':''}" onclick="posSetMode('salida')">↑ Salida</button>
+    <button class="pos-tbtn ${s.mode==='regreso'?'active':''} ${regresoDisabled?'disabled':''}" onclick="posSetMode('regreso')">
+      ↓ Regreso${regresoDisabled ? '<small>disponible al iniciar el tour</small>' : ''}
+    </button>`;
+
+  $('#pos-grid').innerHTML = s.items.map((it, i) => `
+    <div class="pos-item" onclick="posTap(${i})">
+      <div class="pos-item-nm">${escHtml(it.item)}</div>
+      <div class="pos-item-q" onclick="event.stopPropagation();posSetExact(${i})">${it[s.mode]}</div>
+      <div class="pos-item-price">$${Number(it.precio||0).toLocaleString('es-MX')} c/u</div>
+    </div>`).join('') || '<div class="pos-loading">Sin items en el catálogo</div>';
+
+  const total = s.items.reduce((sum, it) => sum + it.salida * Number(it.precio||0), 0);
+  const label = s.mode === 'salida' ? `✓ Guardar salida · $${total.toLocaleString('es-MX')}` : '✓ Guardar regreso';
+  $('#pos-footer').innerHTML = `<button class="pos-save" onclick="posSave()">${label}</button>`;
 }
 
-function invStep(tid, i, delta) {
-  const it = invState[tid].items[i];
-  it._q = Math.max(0, (it._q || 0) + delta);
-  $('#invq-'+tid+'-'+i).textContent = it._q;
+function posSetMode(mode) {
+  if (mode === 'regreso' && !posState.regresoUnlocked) return;
+  posState.mode = mode;
+  posRender();
 }
 
-function invAdd(tid) {
-  const d = invState[tid];
-  const names = d.catalog.filter(c => !d.items.some(x => x.item === c.item)).map(c => c.item);
-  if (!names.length) return alert('Todo el catálogo ya está en la lista');
-  const pick = prompt('Item:\n' + names.map((n, i) => (i + 1) + '. ' + n).join('\n') + '\n\nEscribe el número:');
-  const c = d.catalog.filter(x => x.item === names[Number(pick) - 1])[0];
-  if (!c) return;
-  d.items.push({ item: c.item, unidad: c.unidad, precio: c.precio, qty: 1, qty_returned: null, _q: 1, low: false });
-  $('#inv-'+tid).innerHTML = invRender(tid);
+function posTap(i) {
+  const it = posState.items[i];
+  it[posState.mode] = (it[posState.mode] || 0) + 1;
+  posRender();
 }
 
-async function invSave(tid) {
-  const t = DAY.tours.find(x => x.id === tid);
-  const d = invState[tid];
-  const returning = d.state === 'salida';
-  const items = d.items.map(it => returning
-    ? { item: it.item, qty_returned: it._q }
-    : { item: it.item, qty: it._q });
-  const action = returning ? 'insumos_checkin' : 'insumos_checkout';
+function posSetExact(i) {
+  const it = posState.items[i];
+  const v = prompt('Cantidad exacta de ' + it.item + ':', it[posState.mode]);
+  if (v === null) return;
+  it[posState.mode] = Math.max(0, Number(v) || 0);
+  posRender();
+}
+
+async function posSave() {
+  const s = posState; if (!s) return;
+  const t = s.t, mode = s.mode;
+  const action = mode === 'salida' ? 'insumos_checkout' : 'insumos_checkin';
+  const items = s.items.filter(it => (it[mode]||0) > 0)
+    .map(it => mode === 'salida' ? { item: it.item, qty: it[mode] } : { item: it.item, qty_returned: it[mode] });
   // checkin's contract carries no tour_name — only checkout does
-  const body = returning
+  const body = mode === 'salida'
     ? { availability_pk: t.availability_pk, tour_date: currentDate,
-        coordinator: getApprover(), items: items }
+        tour_name: t.name, coordinator: getApprover(), items }
     : { availability_pk: t.availability_pk, tour_date: currentDate,
-        tour_name: t.name, coordinator: getApprover(), items: items };
+        coordinator: getApprover(), items };
+  const btn = document.querySelector('#pos-footer .pos-save');
+  if (btn) btn.disabled = true;
   try {
     const r = await fetch(apiUrl('?action='+action), { method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
     const res = await r.json();
     if (handleUnauthorized(res)) return;
     if (res.status !== 'ok') throw new Error(res.message || 'error');
-    $('#inv-'+tid).innerHTML = '';
-    invOpen(tid); // re-fetch fresh state
-  } catch (err) { alert('No se pudo guardar: ' + err.message); }
+    // Re-fetch so the chip reflects the server's authoritative state rather
+    // than a client-side guess (server decides when regreso is "complete").
+    fetch(apiUrl('?action=insumos_prefill') +
+      '&availability_pk=' + encodeURIComponent(t.availability_pk) +
+      '&date=' + currentDate + '&tour_name=' + encodeURIComponent(t.name) +
+      '&pax=' + (t.pax || 0))
+      .then(r2 => r2.json()).then(d2 => { if (!handleUnauthorized(d2)) updateInvChip(s.tid, d2.state); })
+      .catch(() => {});
+    posClose();
+  } catch (err) {
+    alert('No se pudo guardar: ' + err.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 // ── Gastos: gasolina (gasolinera / lancha) + compra de insumos ──
