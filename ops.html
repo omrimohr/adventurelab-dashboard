@@ -292,6 +292,23 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
 .gas-btn{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:8px 13px;border-radius:99px;border:1px solid var(--line);background:var(--surface);color:var(--ink);box-shadow:var(--shadow);cursor:pointer}
 .gas-input{width:90px;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:var(--surface)}
 
+/* ── Config subpage ── */
+.cfg-block{margin-top:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.cfg-hdr{display:flex;align-items:center;justify-content:space-between;padding:12px;cursor:pointer;font:600 13.5px var(--sans);color:var(--ink)}
+.cfg-hdr .chevsm{transition:transform .15s}
+.cfg-block.open .cfg-hdr .chevsm{transform:rotate(180deg)}
+.cfg-body{display:none;padding:0 12px 12px}
+.cfg-block.open .cfg-body{display:block;animation:fade .2s ease}
+.cfg-row{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px dashed var(--line);flex-wrap:wrap}
+.cfg-row:last-of-type{border-bottom:none}
+.cfg-row input,.cfg-row select{flex:1 1 80px;min-width:60px;padding:7px 8px;border:1px solid var(--line);border-radius:7px;font-size:13px;background:var(--surface)}
+.cfg-row .cfg-del{flex:none;width:28px;height:28px;border:none;border-radius:7px;background:var(--red-wash,#fbe4e0);color:#b23a1f;font-weight:700;cursor:pointer}
+.cfg-add{margin-top:8px;width:100%;padding:9px;border:1px dashed var(--line);border-radius:8px;background:none;color:var(--ink-soft);font-size:13px;font-weight:600;cursor:pointer}
+.cfg-actions{display:flex;align-items:center;gap:10px;margin-top:10px}
+.cfg-saved-flash{font-size:12.5px;color:var(--teal,#1D9E75);font-weight:600;opacity:0;transition:opacity .2s}
+.cfg-saved-flash.show{opacity:1}
+.cfg-kv{margin-top:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px}
+
 /* ── Subpages + bottom nav ──
    Each subpage is a <section class="page">; only the .active one shows.
    To add a page: add a <section class="page" id="page-X"> in .wrap AND a
@@ -377,9 +394,11 @@ body{font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15p
     </div>
   </section>
 
-  <!-- Config — filled in by Task 6 -->
+  <!-- Config — Tarifas crew, Presets por tour, Recetas, Catálogo -->
   <section class="page" id="page-config">
-    <h2 class="page-title">Configuración (próximamente)</h2>
+    <h2 class="page-title">Configuración</h2>
+    <p class="page-sub">Tarifas, presets, recetas y catálogo. Requiere clave de configuración.</p>
+    <div id="cfg-root"><div class="inv-row"><div class="nm">Cargando…</div></div></div>
   </section>
 </div>
 
@@ -979,6 +998,7 @@ function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + name));
   document.querySelectorAll('.navbtn').forEach(b => b.classList.toggle('active', b.dataset.page === name));
   if (name === 'gastos') { populateGastosBoats(); loadGastosRecent(); }
+  if (name === 'config') { ensureConfigLoaded(); }
 }
 
 // Reuse the day's tour resources as the boat datalist for mantenimiento.
@@ -1025,6 +1045,216 @@ async function loadGastosRecent() {
       return `<div class="inv-row"><div class="nm">${badge} ${escHtml(it.descripcion || '')}${cant}${meta ? `<small>${meta}</small>` : ''}</div><span class="q">${costo}</span></div>`;
     }).join('') : '<div class="inv-row"><div class="nm">Sin movimientos hoy</div></div>';
   } catch (err) { box.innerHTML = '<div class="inv-row"><div class="nm">Error: ' + escHtml(err.message) + '</div></div>'; }
+}
+
+// ── Config subpage ──
+// Second key, separate from the access key, gated by the backend's
+// CONFIG_KEY Script Property. Prompted once per device, stored in
+// localStorage, cleared automatically on a config_unauthorized response.
+const CONFIG_KEY_STORE = 'al_config_key';
+function getConfigKey() {
+  let k = localStorage.getItem(CONFIG_KEY_STORE);
+  while (!k) {
+    k = (prompt('Clave de configuración:') || '').trim();
+    if (k) localStorage.setItem(CONFIG_KEY_STORE, k);
+    else break; // user cancelled — caller handles empty key
+  }
+  return k;
+}
+
+let CONFIG = null;       // { crew, tours, kv, recetas, catalogo }
+let configLoading = null;
+
+function ensureConfigLoaded() {
+  if (CONFIG) { renderConfig(); return; }
+  if (configLoading) return configLoading;
+  const root = $('#cfg-root');
+  configLoading = fetch(apiUrl('?action=config_get'))
+    .then(r => r.json())
+    .then(d => {
+      if (handleUnauthorized(d)) { root.innerHTML = ''; return; }
+      if (d.error) throw new Error(d.error);
+      CONFIG = d;
+      renderConfig();
+    })
+    .catch(err => { root.innerHTML = '<div class="inv-row"><div class="nm">Error: ' + escHtml(err.message) + '</div></div>'; })
+    .finally(() => { configLoading = null; });
+  return configLoading;
+}
+
+// Generic collapsible block header toggle (mirrors .detail on tour cards).
+function cfgToggle(blockId) { $('#' + blockId).classList.toggle('open'); }
+
+function numOr0(v) { const n = Number(v); return isNaN(n) ? 0 : n; }
+function numOrBlank(v) { if (v === '' || v == null) return ''; const n = Number(v); return isNaN(n) ? '' : n; }
+
+function cfgFlash(btnId) {
+  const el = document.getElementById(btnId);
+  if (!el) return;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+// POST config_save for one block. Handles the config_unauthorized gate by
+// clearing the stored key so the next attempt re-prompts.
+async function configSaveBlock(block, rows) {
+  const key = getConfigKey();
+  if (!key) return { error: 'no_key' };
+  const body = { block, rows, config_key: key, coordinator: getApprover() };
+  const r = await fetch(apiUrl('?action=config_save'), { method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body) });
+  const res = await r.json();
+  if (handleUnauthorized(res)) return { error: 'unauthorized' };
+  if (res.error === 'config_unauthorized') {
+    localStorage.removeItem(CONFIG_KEY_STORE);
+    alert('Clave de configuración incorrecta');
+    return { error: 'config_unauthorized' };
+  }
+  return res;
+}
+
+// -- rol/pago_mxn/activo rows --
+function crewRowHtml(r, i) {
+  return `<div class="cfg-row" data-i="${i}">
+    <input placeholder="Rol" value="${escHtml(r.rol)}" oninput="CONFIG.crew[${i}].rol=this.value">
+    <input placeholder="Pago MXN" type="number" inputmode="numeric" value="${escHtml(r.pago_mxn)}" oninput="CONFIG.crew[${i}].pago_mxn=this.value">
+    <select onchange="CONFIG.crew[${i}].activo=this.value">
+      <option value="SI" ${String(r.activo).toUpperCase()==='SI'?'selected':''}>Activo</option>
+      <option value="NO" ${String(r.activo).toUpperCase()==='NO'?'selected':''}>Inactivo</option>
+    </select>
+    <button class="cfg-del" onclick="cfgDelRow('crew',${i})">✕</button>
+  </div>`;
+}
+function cfgAddRow(block) {
+  const defaults = { crew: { rol:'', pago_mxn:0, activo:'SI' },
+    tours: { tour:'', bidones:0, roles:'' },
+    recetas: { tour:'', item:'', por_persona:'', cantidad_fija:'' },
+    catalogo: { item:'', unidad:'', categoria:'', precio:0, minimo:'', maximo:'', activo:'SI' } };
+  CONFIG[block].push(Object.assign({}, defaults[block]));
+  renderConfig();
+}
+function cfgDelRow(block, i) {
+  CONFIG[block].splice(i, 1);
+  renderConfig();
+}
+
+async function cfgSaveCrew() {
+  CONFIG.crew = CONFIG.crew.map(r => ({ rol: String(r.rol||'').trim(), pago_mxn: numOr0(r.pago_mxn), activo: String(r.activo||'SI').toUpperCase() }));
+  const res = await configSaveBlock('crew', CONFIG.crew);
+  if (res.ok) { cfgFlash('cfg-flash-crew'); renderConfig(); }
+}
+
+// -- tour/bidones/roles rows --
+function toursRowHtml(r, i) {
+  return `<div class="cfg-row" data-i="${i}">
+    <input placeholder="Tour" value="${escHtml(r.tour)}" oninput="CONFIG.tours[${i}].tour=this.value">
+    <input placeholder="Bidones" type="number" inputmode="numeric" value="${escHtml(r.bidones)}" oninput="CONFIG.tours[${i}].bidones=this.value">
+    <input placeholder="Roles (capitan,marinero)" value="${escHtml(r.roles)}" oninput="CONFIG.tours[${i}].roles=this.value">
+    <button class="cfg-del" onclick="cfgDelRow('tours',${i})">✕</button>
+  </div>`;
+}
+async function cfgSaveTours() {
+  CONFIG.tours = CONFIG.tours.map(r => ({ tour: String(r.tour||'').trim(), bidones: numOr0(r.bidones), roles: String(r.roles||'').trim() }));
+  const res = await configSaveBlock('tours', CONFIG.tours);
+  if (res.ok) { cfgFlash('cfg-flash-tours'); renderConfig(); }
+}
+
+// -- KV: precio_bidon (own block, full kv object round-tripped so other
+// keys like config_key_hint aren't wiped) --
+async function cfgSaveKv() {
+  const input = $('#cfg-precio-bidon');
+  const kv = Object.assign({}, CONFIG.kv);
+  kv.precio_bidon = numOr0(input.value);
+  const rows = Object.keys(kv).map(clave => ({ clave, valor: kv[clave] }));
+  const res = await configSaveBlock('kv', rows);
+  if (res.ok) { CONFIG.kv = kv; cfgFlash('cfg-flash-kv'); }
+}
+
+// -- tour/item/por_persona/cantidad_fija rows (item <select> from catalogo) --
+function recetasRowHtml(r, i) {
+  const items = (CONFIG.catalogo || []).map(c => c.item);
+  if (r.item && !items.includes(r.item)) items.unshift(r.item);
+  const opts = items.map(it => `<option value="${escHtml(it)}" ${it===r.item?'selected':''}>${escHtml(it)}</option>`).join('');
+  return `<div class="cfg-row" data-i="${i}">
+    <input placeholder="Tour" value="${escHtml(r.tour)}" oninput="CONFIG.recetas[${i}].tour=this.value">
+    <select onchange="CONFIG.recetas[${i}].item=this.value"><option value="">— item —</option>${opts}</select>
+    <input placeholder="Por persona" type="number" inputmode="numeric" value="${escHtml(r.por_persona)}" oninput="CONFIG.recetas[${i}].por_persona=this.value">
+    <input placeholder="Cant. fija" type="number" inputmode="numeric" value="${escHtml(r.cantidad_fija)}" oninput="CONFIG.recetas[${i}].cantidad_fija=this.value">
+    <button class="cfg-del" onclick="cfgDelRow('recetas',${i})">✕</button>
+  </div>`;
+}
+async function cfgSaveRecetas() {
+  CONFIG.recetas = CONFIG.recetas.map(r => ({ tour: String(r.tour||'').trim(), item: String(r.item||'').trim(),
+    por_persona: numOrBlank(r.por_persona), cantidad_fija: numOrBlank(r.cantidad_fija) }));
+  const res = await configSaveBlock('recetas', CONFIG.recetas);
+  if (res.ok) { cfgFlash('cfg-flash-recetas'); renderConfig(); }
+}
+
+// -- item/unidad/categoria/precio/minimo/maximo/activo rows --
+function catalogoRowHtml(r, i) {
+  return `<div class="cfg-row" data-i="${i}">
+    <input placeholder="Item" value="${escHtml(r.item)}" oninput="CONFIG.catalogo[${i}].item=this.value">
+    <input placeholder="Unidad" value="${escHtml(r.unidad)}" oninput="CONFIG.catalogo[${i}].unidad=this.value">
+    <input placeholder="Categoría" value="${escHtml(r.categoria)}" oninput="CONFIG.catalogo[${i}].categoria=this.value">
+    <input placeholder="Precio" type="number" inputmode="numeric" value="${escHtml(r.precio)}" oninput="CONFIG.catalogo[${i}].precio=this.value">
+    <input placeholder="Mínimo" type="number" inputmode="numeric" value="${escHtml(r.minimo)}" oninput="CONFIG.catalogo[${i}].minimo=this.value">
+    <input placeholder="Máximo" type="number" inputmode="numeric" value="${escHtml(r.maximo)}" oninput="CONFIG.catalogo[${i}].maximo=this.value">
+    <select onchange="CONFIG.catalogo[${i}].activo=this.value">
+      <option value="SI" ${String(r.activo).toUpperCase()==='SI'?'selected':''}>Activo</option>
+      <option value="NO" ${String(r.activo).toUpperCase()==='NO'?'selected':''}>Inactivo</option>
+    </select>
+    <button class="cfg-del" onclick="cfgDelRow('catalogo',${i})">✕</button>
+  </div>`;
+}
+async function cfgSaveCatalogo() {
+  CONFIG.catalogo = CONFIG.catalogo.map(r => ({ item: String(r.item||'').trim(), unidad: String(r.unidad||'').trim(),
+    categoria: String(r.categoria||'').trim(), precio: numOr0(r.precio), minimo: numOrBlank(r.minimo),
+    maximo: numOrBlank(r.maximo), activo: String(r.activo||'SI').toUpperCase() }));
+  const res = await configSaveBlock('catalogo', CONFIG.catalogo);
+  if (res.ok) { cfgFlash('cfg-flash-catalogo'); renderConfig(); }
+}
+
+function cfgBlockHtml(id, title, rowsHtml, addBlock, saveFn, flashId, extraTop) {
+  return `<div class="cfg-block" id="${id}">
+    <div class="cfg-hdr" onclick="cfgToggle('${id}')"><span>${title}</span><span class="chevsm">${ICON.chevsm}</span></div>
+    <div class="cfg-body">
+      ${extraTop || ''}
+      ${rowsHtml}
+      <button class="cfg-add" onclick="event.stopPropagation();cfgAddRow('${addBlock}')">+ Agregar fila</button>
+      <div class="cfg-actions">
+        <button class="inv-save" style="flex:none;padding:9px 16px" onclick="${saveFn}()">Guardar</button>
+        <span class="cfg-saved-flash" id="${flashId}">Guardado ✓</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderConfig() {
+  const root = $('#cfg-root');
+  if (!CONFIG) { root.innerHTML = '<div class="inv-row"><div class="nm">Cargando…</div></div>'; return; }
+  const openIds = new Set([...document.querySelectorAll('.cfg-block.open')].map(el => el.id));
+
+  const crewRows = (CONFIG.crew || []).map(crewRowHtml).join('');
+  const toursRows = (CONFIG.tours || []).map(toursRowHtml).join('');
+  const recetasRows = (CONFIG.recetas || []).map(recetasRowHtml).join('');
+  const catalogoRows = (CONFIG.catalogo || []).map(catalogoRowHtml).join('');
+  const precioBidon = (CONFIG.kv && CONFIG.kv.precio_bidon != null) ? CONFIG.kv.precio_bidon : 0;
+
+  root.innerHTML =
+    cfgBlockHtml('cfg-crew', 'Tarifas crew', crewRows, 'crew', 'cfgSaveCrew', 'cfg-flash-crew') +
+    cfgBlockHtml('cfg-tours', 'Presets por tour', toursRows, 'tours', 'cfgSaveTours', 'cfg-flash-tours',
+      `<div class="cfg-kv" style="margin:0 0 10px">
+         <div class="cfg-row" style="border-bottom:none">
+           <div class="nm" style="flex:1">Precio por bidón (MXN)</div>
+           <input id="cfg-precio-bidon" type="number" inputmode="numeric" style="max-width:110px" value="${escHtml(precioBidon)}">
+           <button class="inv-save" style="flex:none;padding:9px 14px" onclick="event.stopPropagation();cfgSaveKv()">Guardar</button>
+         </div>
+         <span class="cfg-saved-flash" id="cfg-flash-kv">Guardado ✓</span>
+       </div>`) +
+    cfgBlockHtml('cfg-recetas', 'Recetas', recetasRows, 'recetas', 'cfgSaveRecetas', 'cfg-flash-recetas') +
+    cfgBlockHtml('cfg-catalogo', 'Catálogo', catalogoRows, 'catalogo', 'cfgSaveCatalogo', 'cfg-flash-catalogo');
+
+  openIds.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('open'); });
 }
 
 function render() {
